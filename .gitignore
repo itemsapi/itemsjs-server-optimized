@@ -39,3 +39,5 @@ jspm_packages
 lib
 temp/
 flightplan.js
+build/
+*.mdb/

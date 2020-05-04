@@ -1,4 +1,4 @@
-#include "functionexample.h"
+#include "itemsjs.h"
 #include <iostream>
 #include "roaring.hh"
 #include "roaring.c"
@@ -14,17 +14,17 @@ using namespace std;
 map<string, vector<int>> facets;
 map<string_view, vector<int>> facets2;
 map<string_view, map<string_view, vector<int>>> facets3;
-
 map<string_view, map<string_view, Roaring>> roar;
 
-std::string functionexample::hello(){
+
+std::string itemsjs::hello(){
 
   return "hello";
 }
 
-std::string functionexample::index(){
+std::string itemsjs::index(string filename = ""){
 
-  string filename = "/home/mateusz/node/items-benchmark/datasets/shoprank_full.json";
+  //string filename = "/home/mateusz/node/items-benchmark/datasets/shoprank_full.json";
 
   simdjson::dom::parser parser;
   //dom::element doc2 = parser.parse(" [ 1 , 2 , 3 ] "_padded);
@@ -99,23 +99,33 @@ std::string functionexample::index(){
 
 }
 
-Napi::String functionexample::HelloWrapped(const Napi::CallbackInfo& info) {
+Napi::String itemsjs::HelloWrapped(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
-  Napi::String returnValue = Napi::String::New(env, functionexample::hello());
+  Napi::String returnValue = Napi::String::New(env, itemsjs::hello());
   return returnValue;
 }
 
-Napi::String functionexample::IndexWrapped(const Napi::CallbackInfo& info) {
+Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
-  Napi::String returnValue = Napi::String::New(env, functionexample::index());
+
+  Napi::String first = info[0].As<Napi::String>();
+  string nowy(first);
+  //cout << first << endl;
+  //cout << nowy << endl;
+
+  Napi::String returnValue = Napi::String::New(env, itemsjs::index(nowy));
+
   return returnValue;
 }
 
-Napi::Object functionexample::Init(Napi::Env env, Napi::Object exports) {
-  exports.Set("hello", Napi::Function::New(env, functionexample::HelloWrapped));
-  exports.Set("index", Napi::Function::New(env, functionexample::IndexWrapped));
-  //exports.Set("search", Napi::Function::New(env, functionexample::IndexWrapped));
-  //exports.Set("aggregation", Napi::Function::New(env, functionexample::IndexWrapped));
-  //exports.Set("reindex", Napi::Function::New(env, functionexample::IndexWrapped));
+Napi::Object itemsjs::Init(Napi::Env env, Napi::Object exports) {
+  exports.Set("hello", Napi::Function::New(env, itemsjs::HelloWrapped));
+  exports.Set("index", Napi::Function::New(env, itemsjs::IndexWrapped));
+  //exports.Set("add", Napi::Function::New(env, itemsjs::IndexWrapped));
+  //exports.Set("update", Napi::Function::New(env, itemsjs::IndexWrapped));
+  //exports.Set("delete", Napi::Function::New(env, itemsjs::IndexWrapped));
+  //exports.Set("search", Napi::Function::New(env, itemsjs::IndexWrapped));
+  //exports.Set("aggregation", Napi::Function::New(env, itemsjs::IndexWrapped));
+  //exports.Set("reindex", Napi::Function::New(env, itemsjs::IndexWrapped));
   return exports;
 }

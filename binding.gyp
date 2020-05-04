@@ -1,13 +1,13 @@
 {
   "targets": [{
-    "target_name": "testaddon",
+    "target_name": "itemsjs_addon",
       "cflags!": [ "-fno-exceptions" ],
       "cflags_cc!": ["-O3", "-fno-exceptions", "-std=gnu++0x", "-std=gnu++1y"],
       "cflags_cc+": ["-O3", "-std=c++17"],
       "sources": [
-        "cppsrc/main.cpp",
-        "cppsrc/Samples/functionexample.cpp",
-        "cppsrc/Samples/simdjson.cpp"
+        "cpp/main.cpp",
+        "cpp/itemsjs.cpp",
+        "cpp/simdjson.cpp"
       ],
       'include_dirs': [
         "<!@(node -p \"require('node-addon-api').include\")"

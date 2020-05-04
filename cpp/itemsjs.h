@@ -1,11 +1,11 @@
 #include <napi.h>
 #include <string>
 
-namespace functionexample {
+namespace itemsjs {
 
   std::string hello();
   //std::string index(std::string filename);
-  std::string index();
+  std::string index(std::string filename);
   Napi::String HelloWrapped(const Napi::CallbackInfo& info);
   Napi::String IndexWrapped(const Napi::CallbackInfo& info);
 

@@ -4,13 +4,18 @@
   "description": "ItemsJS on steroid",
   "main": "lib/index.js",
   "scripts": {
-    "test": "mocha tests/*"
+    "test": "mocha tests/*",
+    "build": "node-gyp rebuild",
+    "clean": "node-gyp clean"
   },
   "author": "Mateusz Rzepa",
+  "gypfile": true,
   "dependencies": {
     "express": "^4.17.1",
     "lodash": "^4.17.4",
     "lunr": "^1.0.0",
+    "bindings": "^1.5.0",
+    "node-addon-api": "^2.0.0",
     "roaring": "^1.0.6"
   },
   "devDependencies": {
@@ -18,7 +23,9 @@
     "lodash-cli": "^4.17.4",
     "mocha": "^5.2.0",
     "should": "^11.2.1",
-    "sinon": "^2.1.0"
+    "sinon": "^2.1.0",
+    "flightplan": "^0.6.17",
+    "recursive-readdir-sync": "^1.0.6"
   },
   "directories": {
     "test": "tests"
