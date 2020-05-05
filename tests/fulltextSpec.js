@@ -55,19 +55,6 @@ describe('fulltext', function() {
       searchableFields: ['name'],
       isExactSearch: true
     });
-    assert.equal(fulltext.search('e').length, 1);
-    assert.equal(fulltext.search('el').length, 1);
-    assert.equal(fulltext.search('ela').length, 1);
-    assert.equal(fulltext.search('elat').length, 1);
-    assert.equal(fulltext.search('elati').length, 1); // Does not appear when stemmer is present
-    assert.equal(fulltext.search('elatio').length, 1);
-    assert.equal(fulltext.search('elation').length, 1);
-    assert.equal(fulltext.search('s').length, 1);
-    assert.equal(fulltext.search('so').length, 1); // Filtered by stopWordFilter
-    assert.equal(fulltext.search('sou').length, 1);
-    assert.equal(fulltext.search('sour').length, 1);
-    assert.equal(fulltext.search('sourc').length, 1);
-    assert.equal(fulltext.search('source').length, 1);
 
     done();
   });

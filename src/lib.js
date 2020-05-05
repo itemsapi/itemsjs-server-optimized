@@ -27,19 +27,6 @@ module.exports.search = function(items, input, configuration, fulltext, facets) 
   }
 
   /**
-   * making a items filtering after search and before faceting
-   */
-  if (input.filter instanceof Function) {
-    items = items.filter(input.filter);
-  }
-
-  // @deprecated
-  if (input.prefilter instanceof Function) {
-    items = input.prefilter(items);
-  }
-
-
-  /**
    * ------------------------------------------
    * new facets sort
    * sort query ids
