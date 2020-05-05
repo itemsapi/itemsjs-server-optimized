@@ -1,4 +1,5 @@
 const lmdb = require('node-lmdb');
+const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 
 const env = new lmdb.Env();
 env.open({
@@ -16,6 +17,18 @@ const dbi = env.openDbi({
 
 
 
+module.exports.getFilterIndex = function(key) {
+
+  var txn = env.beginTxn();
+
+  //var binary = txn.getBinary(dbi, new Buffer.from('actors.Al Pacino'));
+  var binary = txn.getBinary(dbi, new Buffer.from(key));
+  var bitmap = RoaringBitmap32.deserialize(binary, true);
+
+  txn.abort();
+
+  return bitmap;
+}
 
 module.exports.getItem = function(id) {
 
@@ -45,6 +58,9 @@ module.exports.getItems = function(ids) {
 
   return output;
 }
+
+
+
 
 /**
  * get internal ids

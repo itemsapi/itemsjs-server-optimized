@@ -15,7 +15,7 @@ const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 const addon = require('bindings')('itemsjs_addon.node');
 const lmdb = require('node-lmdb');
 
-var items = [{
+var data = [{
   id: 1,
   name: 'movie1',
   tags: ['a', 'b', 'c', 'd'],
@@ -46,42 +46,20 @@ describe('indexing', function() {
   it('checks index', function test(done) {
 
     //var index = addon.index('/home/mateusz/node/items-benchmark/datasets/shoprank_full.json');
-    var index = addon.index('./tests/fixtures/movies.json');
-
-    var env = new lmdb.Env();
-    env.open({
-      //path: './db.mdb',
-      path: './example.mdb',
-      mapSize: 2 * 1024 * 1024 * 1024,
-      maxReaders: 3,
-      maxDbs: 1
+    var index = addon.index({
+      json_path: './tests/fixtures/movies.json',
+      //fields: ['actors', 'genres', 'year']
     });
 
+    var filter_index = storage.getFilterIndex('actors.Al Pacino');
+    assert.deepEqual(2, filter_index.size);
+    assert.deepEqual([2, 4], filter_index.toArray());
 
-    var dbi = env.openDbi({
-      name: null,
-      create: false
-    })
+    var filter_index = storage.getFilterIndex('genres.Drama');
+    assert.deepEqual(15, filter_index.size);
 
-    var txn = env.beginTxn();
-
-    var binary = txn.getBinary(dbi, new Buffer.from('actors.Al Pacino'));
-    var bitmap = RoaringBitmap32.deserialize(binary, true);
-    assert.deepEqual(2, bitmap.size);
-
-    var binary = txn.getBinary(dbi, new Buffer.from('genres.Drama'));
-    var bitmap = RoaringBitmap32.deserialize(binary, true);
-    assert.deepEqual(15, bitmap.size);
-
-    var binary = txn.getBinary(dbi, new Buffer.from('1'));
-    var json = JSON.parse(binary.toString());
-    assert.deepEqual(json.name, 'The Shawshank Redemption');
-
-    var binary = txn.getBinary(dbi, new Buffer.from('1'));
-    var json = JSON.parse(binary.toString());
-    assert.deepEqual(json.name, 'The Shawshank Redemption');
-
-    env.close();
+    var filter_index = storage.getFilterIndex('year.1974');
+    assert.deepEqual(1, filter_index.size);
 
     var item = storage.getItem(1);
     assert.deepEqual(item.name, 'The Shawshank Redemption');
@@ -92,14 +70,40 @@ describe('indexing', function() {
     var items = storage.getItems([1, 2]);
     assert.deepEqual(items[0].name, 'The Shawshank Redemption');
 
+    //var items = storage.getItems([1, 2]);
+    //assert.deepEqual(items[0].name, 'The Shawshank Redemption');
+
+    //var items = storage.getItems([1, 2, 3]);
+    //assert.deepEqual(items[0].name, 'The Shawshank Redemption');
     done();
   })
 
   it('checks index creating from non json object', function test(done) {
 
-    //var index = addon.index({
-      //json: items
-    //});
+    var index = addon.index({
+      json_object: data
+    });
+
+    var item = storage.getItem(1);
+    assert.deepEqual(item.name, 'movie1');
+
+    var item = storage.getItem(2);
+    assert.deepEqual(item.name, 'movie2');
+
+    var items = storage.getItems([1, 2]);
+    assert.deepEqual(items[0].name, 'movie1');
+
+    done();
+  })
+
+  it('checks index creating from stringified json', function test(done) {
+
+    var index = addon.index({
+      json_string: JSON.stringify(data)
+    });
+
+    var item = storage.getItem(1);
+    assert.deepEqual(item.name, 'movie1');
 
     done();
   })

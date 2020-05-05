@@ -5,7 +5,7 @@ namespace itemsjs {
 
   std::string hello();
   //std::string index(std::string filename);
-  std::string index(std::string filename);
+  std::string index(std::string json_path, std::string json_string);
   std::string json();
   Napi::String HelloWrapped(const Napi::CallbackInfo& info);
   Napi::String IndexWrapped(const Napi::CallbackInfo& info);

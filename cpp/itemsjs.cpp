@@ -14,8 +14,6 @@
 using namespace simdjson;
 using namespace std;
 
-map<string, vector<int>> facets;
-map<string_view, vector<int>> facets2;
 map<string_view, map<string_view, vector<int>>> facets3;
 map<string_view, map<string_view, Roaring>> roar;
 
@@ -29,7 +27,7 @@ std::string itemsjs::json(){
   return "json";
 }
 
-std::string itemsjs::index(string filename = "") {
+std::string itemsjs::index(string json_path, string json_string) {
 
   auto env = lmdb::env::create();
   env.set_mapsize(1UL * 1024UL * 1024UL * 1024UL); /* 1 GiB */
@@ -39,7 +37,14 @@ std::string itemsjs::index(string filename = "") {
   //string filename = "/home/mateusz/node/items-benchmark/datasets/shoprank_full.json";
 
   simdjson::dom::parser parser;
-  simdjson::dom::element items = parser.load(filename);
+  simdjson::dom::element items;
+
+
+  if (!json_path.empty()) {
+    items = parser.load(json_path);
+  } else {
+    items = parser.parse(json_string);
+  }
 
   /*auto env = lmdb::env::create();
   env.set_mapsize(1UL * 1024UL * 1024UL * 1024UL * 5UL);
@@ -86,11 +91,23 @@ std::string itemsjs::index(string filename = "") {
 
         for (auto filter : value) {
           //cout << "key: " << key <<  " filter: " << filter << endl;
-          facets3[key][filter].push_back(i);
 
+          facets3[key][filter].push_back(i);
           roar[key][filter].add(i);
         }
       }
+
+      else if (key == "year" and value.type() == dom::element_type::INT64) {
+
+        string year(to_string(int64_t(value)));
+        char *char_array = new char [year.length()];
+        strcpy(char_array, year.c_str());
+        string_view filter (char_array, year.length());
+
+        facets3[key][filter].push_back(i);
+        roar[key][filter].add(i);
+      }
+
     }
 
     ++i;
@@ -113,6 +130,7 @@ std::string itemsjs::index(string filename = "") {
       std::string sv(key);
       std::string sv2(key2);
       string name = sv + "." + sv2;
+      cout << name << endl;
 
       int expectedsize = roar_object.getSizeInBytes();
 
@@ -142,7 +160,6 @@ std::string itemsjs::index(string filename = "") {
 
 
   return "index";
-
 }
 
 Napi::String itemsjs::HelloWrapped(const Napi::CallbackInfo& info) {
@@ -162,12 +179,44 @@ Napi::String itemsjs::JsonWrapped(const Napi::CallbackInfo& info) {
 Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
-  Napi::String first = info[0].As<Napi::String>();
-  string nowy(first);
+  Napi::Object first = info[0].As<Napi::Object>();
+  //string nowy(first);
   //cout << first << endl;
   //cout << nowy << endl;
 
-  Napi::String returnValue = Napi::String::New(env, itemsjs::index(nowy));
+  //cout << first.Has("json_path") << endl;
+  //cout << first.Has("json_object") << endl;
+  //cout << first.Has("json_string") << endl;
+
+  Napi::String returnValue;
+  string json_string;
+
+  if (first.Has("json_object")) {
+
+    Napi::Value json_object = first.Get("json_object");
+
+    Napi::Object json = env.Global().Get("JSON").As<Napi::Object>();
+    Napi::Function stringify = json.Get("stringify").As<Napi::Function>();
+    string json_string =  stringify.Call(json, { json_object }).As<Napi::String>();
+
+    returnValue = Napi::String::New(env, itemsjs::index("", json_string));
+
+  } else if (first.Has("json_path")) {
+
+    Napi::Value json_path = first.Get("json_path");
+    string json_path_string(json_path.ToString());
+
+    returnValue = Napi::String::New(env, itemsjs::index(json_path_string, ""));
+
+  } else if (first.Has("json_string")) {
+
+    Napi::Value json_string = first.Get("json_string");
+    string json_string_string(json_string.ToString());
+
+    returnValue = Napi::String::New(env, itemsjs::index("", json_string_string));
+  }
+
+
 
   return returnValue;
 }
