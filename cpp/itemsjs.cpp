@@ -8,17 +8,15 @@
 #include <bits/stdc++.h>
 #include "lmdb2++.h"
 
-#include <node.h>
-#include <node_buffer.h>
-
 using namespace simdjson;
 using namespace std;
 
 map<string_view, map<string_view, vector<int>>> facets3;
 map<string_view, map<string_view, Roaring>> roar;
+vector<string> keys_list;
+Roaring ids;
 
 std::string itemsjs::hello(){
-
   return "hello";
 }
 
@@ -40,44 +38,54 @@ std::string itemsjs::index(string json_path, string json_string) {
   simdjson::dom::element items;
 
 
+  auto start = std::chrono::high_resolution_clock::now();
+
   if (!json_path.empty()) {
     items = parser.load(json_path);
   } else {
     items = parser.parse(json_string);
   }
 
-  /*auto env = lmdb::env::create();
-  env.set_mapsize(1UL * 1024UL * 1024UL * 1024UL * 5UL);
-  env.set_max_readers(100);
-  env.open("./db.mdb", 0, 0664);*/
-
-  /*dom::element first = items.at(0);
-  string sv = simdjson::minify(first);
-  std::cout << sv << std::endl;*/
-
+  auto elapsed = std::chrono::high_resolution_clock::now() - start;
+  std::cout << "parse time: " << elapsed.count() / 1000000<< std::endl;
 
 
   auto wtxn = lmdb::txn::begin(env);
   auto dbi = lmdb::dbi::open(wtxn, nullptr);
 
-  auto start = std::chrono::high_resolution_clock::now();
+  start = std::chrono::high_resolution_clock::now();
 
   int i = 1;
   for (dom::element item : items) {
+
+    string ok = "";
 
     string sv = simdjson::minify(item);
     string name = to_string(i) + "";
     //dbi.del(wtxn, name);
     dbi.put(wtxn, name.c_str(), sv.c_str());
 
+    ids.add(i);
     ++i;
   }
 
-  auto elapsed = std::chrono::high_resolution_clock::now() - start;
+  /**
+   * write ids to db
+   */
+  int expectedsize = ids.getSizeInBytes();
+  char *serializedbytes = new char [expectedsize];
+  ids.write(serializedbytes);
+  std::string_view nowy(serializedbytes, expectedsize);
+  dbi.put(wtxn, "ids", nowy);
+
+  elapsed = std::chrono::high_resolution_clock::now() - start;
   std::cout << "items put time: " << elapsed.count() / 1000000<< std::endl;
 
   start = std::chrono::high_resolution_clock::now();
   wtxn.commit();
+
+  elapsed = std::chrono::high_resolution_clock::now() - start;
+  std::cout << "items put commit time: " << elapsed.count() / 1000000<< std::endl;
 
   std::cout << "start tokenizing and indexing: " << std::endl;
   start = std::chrono::high_resolution_clock::now();
@@ -120,7 +128,6 @@ std::string itemsjs::index(string json_path, string json_string) {
   wtxn = lmdb::txn::begin(env);
   dbi = lmdb::dbi::open(wtxn, nullptr);
 
-
   start = std::chrono::high_resolution_clock::now();
   for (auto&& [key, value] : roar) {
     // use first and second
@@ -130,7 +137,6 @@ std::string itemsjs::index(string json_path, string json_string) {
       std::string sv(key);
       std::string sv2(key2);
       string name = sv + "." + sv2;
-      cout << name << endl;
 
       int expectedsize = roar_object.getSizeInBytes();
 
@@ -142,21 +148,31 @@ std::string itemsjs::index(string json_path, string json_string) {
       char *serializedbytes = new char [expectedsize];
       roar_object.write(serializedbytes);
       std::string_view nowy(serializedbytes, expectedsize);
-      //serializedbytes[expectedsize] = '\0';
-      //dbi.del(wtxn, name);
       dbi.put(wtxn, name, nowy);
+
+      keys_list.push_back(name);
+
       //dbi.put(wtxn, name.c_str(), serializedbytes);
     }
   }
 
+  string keys_list_joined = "";
+  for (auto const& s : keys_list) {
+    keys_list_joined += s;
+    keys_list_joined += "|||";
+  }
+  //std::cout << keys_list_joined;
+
+  dbi.put(wtxn, "keys_list", keys_list_joined);
+
   elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "put time: " << elapsed.count() / 1000000<< std::endl;
+  std::cout << "facets put time: " << elapsed.count() / 1000000<< std::endl;
 
   start = std::chrono::high_resolution_clock::now();
   wtxn.commit();
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "commit time: " << elapsed.count() / 1000000<< std::endl;
+  std::cout << "facets commit time: " << elapsed.count() / 1000000<< std::endl;
 
 
   return "index";

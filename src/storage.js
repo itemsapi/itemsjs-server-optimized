@@ -15,6 +15,17 @@ const dbi = env.openDbi({
   create: false
 })
 
+module.exports.getKeysList = function() {
+
+  var txn = env.beginTxn();
+  var binary = txn.getBinary(dbi, new Buffer.from('keys_list'));
+  var string = binary.toString();
+  var array = string.split('|||');
+
+  txn.abort();
+  return array;
+}
+
 
 
 module.exports.getFilterIndex = function(key) {
@@ -65,6 +76,14 @@ module.exports.getItems = function(ids) {
 /**
  * get internal ids
  */
-module.exports.getIds = function(ids) {
+module.exports.getIds = function() {
 
+  var txn = env.beginTxn();
+
+  var binary = txn.getBinary(dbi, new Buffer.from('ids'));
+  var bitmap = RoaringBitmap32.deserialize(binary, true);
+
+  txn.abort();
+
+  return bitmap;
 }

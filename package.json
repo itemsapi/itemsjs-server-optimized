@@ -6,6 +6,7 @@
   "scripts": {
     "test": "mocha tests/*",
     "build": "node-gyp rebuild",
+    "compile": "node-gyp build -j 12",
     "clean": "node-gyp clean"
   },
   "author": "Mateusz Rzepa",

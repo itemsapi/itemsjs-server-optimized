@@ -61,6 +61,16 @@ describe('indexing', function() {
     var filter_index = storage.getFilterIndex('year.1974');
     assert.deepEqual(1, filter_index.size);
 
+    var filter_index = storage.getFilterIndex('year.2008');
+    assert.deepEqual(1, filter_index.size);
+
+    var filter_index = storage.getFilterIndex('director.Sergio Leone');
+    assert.deepEqual(1, filter_index.size);
+
+    var keys_list = storage.getKeysList('keys_list');
+    //console.log(JSON.stringify(keys_list));
+    assert.deepEqual('actors.Aamir Khan', keys_list[0]);
+
     var item = storage.getItem(1);
     assert.deepEqual(item.name, 'The Shawshank Redemption');
 
@@ -69,6 +79,9 @@ describe('indexing', function() {
 
     var items = storage.getItems([1, 2]);
     assert.deepEqual(items[0].name, 'The Shawshank Redemption');
+
+    var ids = storage.getIds();
+    assert.deepEqual(ids.size, 20);
 
     //var items = storage.getItems([1, 2]);
     //assert.deepEqual(items[0].name, 'The Shawshank Redemption');
