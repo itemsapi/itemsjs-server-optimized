@@ -98,12 +98,19 @@ module.exports.getItems = function(ids) {
 }
 
 
+/**
+ * get internal ids
+ */
+module.exports.getIds = function() {
+
+  return module.exports.getIdsBitmap().toArray();
+}
 
 
 /**
  * get internal ids
  */
-module.exports.getIds = function() {
+module.exports.getIdsBitmap = function() {
 
   var txn = env.beginTxn();
 

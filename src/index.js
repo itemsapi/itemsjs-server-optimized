@@ -5,20 +5,11 @@ const Fulltext = require('./fulltext');
 const Facets = require('./facets');
 const addon = require('bindings')('itemsjs_addon.node');
 
-module.exports = function itemsjs(items, configuration) {
+module.exports = function itemsjs(configuration) {
 
   configuration = configuration || {};
 
-
-  // upsert id to items
-  // throw error in tests if id does not exists
-
-  // responsible for full text search over the items
-  // it makes inverted index and it is very fast
-  var fulltext = new Fulltext(items, configuration);
-
-  // index facets
-  var facets = new Facets(items, configuration.aggregations);
+  var facets = new Facets(configuration.aggregations);
 
   return {
 
@@ -28,12 +19,8 @@ module.exports = function itemsjs(items, configuration) {
      * json_path
      */
     index: function(items) {
-      input = input || {};
 
-      addon.index({
-        json_object: items
-        //json_path: "/home/mateusz/node/items-benchmark/datasets/shoprank_full.json"
-      })
+      facets.index(items, configuration.aggregations);
     },
 
 
@@ -53,7 +40,7 @@ module.exports = function itemsjs(items, configuration) {
        */
       input.aggregations = helpers.mergeAggregations(configuration.aggregations, input);
 
-      return service.search(items, input, configuration, fulltext, facets);
+      return service.search(input, configuration, facets);
     },
 
     /**

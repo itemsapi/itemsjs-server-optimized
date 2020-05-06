@@ -1,6 +1,7 @@
 const _ = require('lodash');
 const helpers = require('./helpers');
 const helpers2 = require('./helpers2');
+const storage = require('./storage');
 const algo = require('./algo');
 const Fulltext = require('./fulltext');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
@@ -8,7 +9,8 @@ const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 /**
  * search by filters
  */
-module.exports.search = function(items, input, configuration, fulltext, facets) {
+//module.exports.search = function(items, input, configuration, fulltext, facets) {
+module.exports.search = function(input, configuration, facets) {
 
 
   input = input || {};
@@ -18,30 +20,13 @@ module.exports.search = function(items, input, configuration, fulltext, facets) 
 
   var search_time = 0;
   var total_time_start = new Date().getTime();
-  // make search by query first
-  if (fulltext) {
-
-    var search_start_time = new Date().getTime();
-    items = fulltext.search(input.query);
-    search_time = new Date().getTime() - search_start_time;
-  }
 
   /**
    * ------------------------------------------
    * new facets sort
    * sort query ids
    */
-
   var sort_time = new Date().getTime();
-  //var sorted_ids =
-  var sorted_ids;
-
-  if (input.query) {
-    sorted_ids = algo.quick_sort(_.map(items, v => {
-      return parseInt(v.id);
-    }));
-    console.log('elements to sort: ' + sorted_ids.length);
-  }
   sort_time = new Date().getTime() - sort_time;
 
   // -------------------------------------------
@@ -52,8 +37,12 @@ module.exports.search = function(items, input, configuration, fulltext, facets) 
    * new facet search also by using sort
    */
 
+  //var facet_result = facets.search(input, {
+    //query_ids: input.query ? new RoaringBitmap32(sorted_ids) : undefined
+  //});
   var facet_result = facets.search(input, {
-    query_ids: input.query ? new RoaringBitmap32(sorted_ids) : undefined
+    // it will be loaded with query ids
+    query_ids: undefined
   });
   new_facet_time = new Date().getTime() - new_facet_time;
 
@@ -73,10 +62,16 @@ module.exports.search = function(items, input, configuration, fulltext, facets) 
     facets_ids = facets_ids_bits.toArray();
   }
 
-  var _ids = fulltext.internal_ids();
+
+
+  //var _ids = storage.getIds();
+  var _ids_bitmap = storage.getIdsBitmap();
+
+
+  /*var _ids = fulltext.internal_ids();
   if (input.query) {
     _ids = sorted_ids;
-  }
+  }*/
 
   var filtered_indexes;
 
@@ -85,38 +80,29 @@ module.exports.search = function(items, input, configuration, fulltext, facets) 
   /**
    * if query does not exist then take ids from index
    * if query exists then take newly created (it should be precalculated once making search)
+   * cross query with facets
    */
-
-  if (facets_ids === null) {
-    //filtered_indexes = _.map(items, 'id');
+  /*if (facets_ids === null) {
     filtered_indexes = _ids;
   } else if (input.query) {
-
-
-    // it could be improved
     filtered_indexes = _.map(items, 'id').filter(v => {
       return _.sortedIndexOf(facets_ids, v) !== -1;
     })
   } else {
-
-    // it could be improved
-
-    //console.log(fulltext.bits_ids().toArray());
-    //console.log(fulltext._ids);
-
     filtered_indexes = RoaringBitmap32.and(fulltext.bits_ids(), facets_ids_bits).toArray();
+  }*/
 
-    //filtered_indexes = _ids.filter(v => {
-      //return _.sortedIndexOf(facets_ids, v) !== -1;
-    //})
-  }
+  var filtered_indexes_bitmap = RoaringBitmap32.and(_ids_bitmap, facets_ids_bits);
+  var filtered_indexes = filtered_indexes_bitmap.toArray();
 
   var new_items_indexes = filtered_indexes.slice((page - 1) * per_page, page * per_page);
   var new_items;
 
-  new_items = _.map(new_items_indexes, id => {
+  /*new_items = _.map(new_items_indexes, id => {
     return fulltext.get_item(id);
-  })
+  })*/
+
+  new_items = storage.getItems(new_items_indexes);
 
   facets_ids_time = new Date().getTime() - facets_ids_time;
   // -------------------------------------

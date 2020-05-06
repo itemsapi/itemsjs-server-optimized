@@ -84,7 +84,7 @@ describe('indexing', function() {
     var items = storage.getItems([1, 2]);
     assert.deepEqual(items[0].name, 'The Shawshank Redemption');
 
-    var ids = storage.getIds();
+    var ids = storage.getIdsBitmap();
     assert.deepEqual(ids.size, 20);
 
     //var items = storage.getItems([1, 2]);
