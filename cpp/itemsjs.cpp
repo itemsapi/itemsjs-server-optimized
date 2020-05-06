@@ -28,7 +28,7 @@ std::string itemsjs::json(){
 std::string itemsjs::index(string json_path, string json_string) {
 
   auto env = lmdb::env::create();
-  env.set_mapsize(1UL * 1024UL * 1024UL * 1024UL); /* 1 GiB */
+  env.set_mapsize(10UL * 1024UL * 1024UL * 1024UL); /* 1 GiB */
   env.set_max_dbs(3);
   env.open("./example.mdb", 0, 0664);
 
@@ -112,6 +112,13 @@ std::string itemsjs::index(string json_path, string json_string) {
         strcpy(char_array, year.c_str());
         string_view filter (char_array, year.length());
 
+        facets3[key][filter].push_back(i);
+        roar[key][filter].add(i);
+      }
+
+      else if (key == "category" and value.type() == dom::element_type::STRING) {
+
+        string_view filter (value);
         facets3[key][filter].push_back(i);
         roar[key][filter].add(i);
       }

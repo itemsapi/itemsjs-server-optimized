@@ -5,9 +5,9 @@ const env = new lmdb.Env();
 env.open({
   //path: './db.mdb',
   path: './example.mdb',
-  mapSize: 2 * 1024 * 1024 * 1024,
+  mapSize: 10 * 1024 * 1024 * 1024,
   maxReaders: 3,
-  maxDbs: 1
+  maxDbs: 3
 });
 
 const dbi = env.openDbi({
@@ -39,6 +39,33 @@ module.exports.getFilterIndex = function(key) {
   txn.abort();
 
   return bitmap;
+}
+
+module.exports.getFilterIndexes = function() {
+
+  var txn = env.beginTxn();
+
+  var output = {};
+  var binary = txn.getBinary(dbi, new Buffer.from('keys_list'));
+  var string = binary.toString();
+  var keys = string.split('|||');
+
+  keys.forEach(key => {
+
+    if (!key) {
+      return;
+    }
+
+    var binary = txn.getBinary(dbi, new Buffer.from(key));
+
+    if (binary) {
+      output[key] = RoaringBitmap32.deserialize(binary, true);
+    }
+  })
+
+  txn.abort();
+
+  return output;
 }
 
 module.exports.getItem = function(id) {

@@ -1,19 +1,21 @@
 const _ = require('lodash');
 const helpers2 = require('./helpers2');
+const storage = require('./storage');
 const algo = require('./algo');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
+const addon = require('bindings')('itemsjs_addon.node');
 
 /**
  * responsible for making faceted search
  */
-var Facets = function(items, config) {
+var Facets = function(config) {
 
   config = config || {};
   //config.searchableFields = config.searchableFields || [];
-  this.items = items;
+  //this.items = items;
   this.config = config;
 
-  this.facets = helpers2.index(items, config);
+  //this.facets = helpers2.index(items, config);
   //console.log(facets);
   //console.log(facets);
 
@@ -25,15 +27,43 @@ Facets.prototype = {
     return this.items;
   },
 
-  index: function() {
+  index: function(items, config) {
+
+    config = config || {};
+    this.items = items;
+    this.config = config;
+
+    // memory index
+    //this.facets = helpers2.index(this.items, this.config);
+
+    // file index
+    //this.facets = helpers2.index(this.items, this.config);
+
+    if (typeof items === 'string' || items instanceof String) {
+      addon.index({
+        json_path: items
+      })
+    } else {
+      addon.index({
+        json_object: items
+      })
+
+    }
+
+
+
+    //return this.facets;
+  },
+
+  get_index: function() {
     return this.facets;
   },
 
-  reindex: function() {
+  /*reindex: function() {
     this.facets = helpers2.index(this.items, this.config);
 
     return this.facets;
-  },
+  },*/
 
   /*
    *
@@ -52,30 +82,54 @@ Facets.prototype = {
     //var temp_facet = _.clone(this.facets);
 
     data = data || {};
-    //query_ids
-    // clone does not make sensee here
-    var temp_facet = _.clone(this.facets);
-    //var temp_facet = this.facets;
 
-
-    // if elements to sort - sorted_ids is smaller number then items.length
-    // then make this operation here
-
-
-    // working copy
+    /*var temp_facet = _.clone(this.facets);
+    // working copy from memory
     _.mapValues(temp_facet['bits_data'], function(values, key) {
       _.mapValues(temp_facet['bits_data'][key], function(facet_indexes, key2) {
         temp_facet['bits_data_temp'][key][key2] = temp_facet['bits_data'][key][key2];
       })
+    })*/
+
+
+
+    //console.log(storage.getKeysList());
+
+    /**
+     * get facets from file memory db
+     */
+
+    var temp_facet = {
+      bits_data_temp: {},
+      data: {}
+    };
+
+    /*var time = new Date().getTime();
+    var indexes = storage.getFilterIndexes();
+    time = new Date().getTime() - time;
+    console.log('load indexes from db: ' + time);*/
+
+    var time = new Date().getTime();
+    var indexes = storage.getFilterIndexes();
+
+    _.mapValues(indexes, function(bitmap, key) {
+
+      var array = key.split(/\.(.+)/);
+      var key1 = array[0];
+      var key2 = array[1];
+
+      if (!temp_facet['bits_data_temp'][key1]) {
+        temp_facet['bits_data_temp'][key1] = {};
+      }
+
+      if (!temp_facet['data'][key1]) {
+        temp_facet['data'][key1] = {};
+      }
+
+      temp_facet['bits_data_temp'][key1][key2] = bitmap;
     })
-
-    //console.log(temp_facet['bits_data_temp']);
-
-    // disjunction
-
-
-    // this can be faster
-
+    time = new Date().getTime() - time;
+    console.log('load indexes from db + parsing: ' + time);
 
 
 

@@ -3,6 +3,7 @@ const _ = require('lodash');
 const helpers = require('./helpers');
 const Fulltext = require('./fulltext');
 const Facets = require('./facets');
+const addon = require('bindings')('itemsjs_addon.node');
 
 module.exports = function itemsjs(items, configuration) {
 
@@ -20,6 +21,23 @@ module.exports = function itemsjs(items, configuration) {
   var facets = new Facets(items, configuration.aggregations);
 
   return {
+
+    /**
+     * items as json_object
+     * json_string
+     * json_path
+     */
+    index: function(items) {
+      input = input || {};
+
+      addon.index({
+        json_object: items
+        //json_path: "/home/mateusz/node/items-benchmark/datasets/shoprank_full.json"
+      })
+    },
+
+
+
     /**
      * per_page
      * page
@@ -39,33 +57,21 @@ module.exports = function itemsjs(items, configuration) {
     },
 
     /**
-     * returns list of similar elements to specified item id
-     * id
+     * @TODO
      */
     similar: function(id, options) {
-
-      return service.similar(items, id, options);
     },
 
     /**
-     * returns list of elements for specific aggregation i.e. list of tags
-     * name (aggregation name)
-     * query
-     * per_page
-     * page
+     * @TODO
      */
     aggregation: function(input) {
-
-      return service.aggregation(items, input, configuration.aggregations);
     },
 
     /**
-     * reindex items
-     * reinitialize fulltext search
+     * @TODO
      */
-    reindex: function(newItems) {
-      items = newItems;
-      fulltext = new Fulltext(items, configuration);
+    reindex: function() {
     }
   }
 }

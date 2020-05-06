@@ -67,6 +67,10 @@ describe('indexing', function() {
     var filter_index = storage.getFilterIndex('director.Sergio Leone');
     assert.deepEqual(1, filter_index.size);
 
+    var filter_indexes = storage.getFilterIndexes();
+    assert.deepEqual(1, filter_indexes['director.Sergio Leone'].size);
+
+
     var keys_list = storage.getKeysList('keys_list');
     //console.log(JSON.stringify(keys_list));
     assert.deepEqual('actors.Aamir Khan', keys_list[0]);
