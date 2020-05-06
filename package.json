@@ -19,7 +19,7 @@
     "microseconds": "^0.2.0",
     "node-addon-api": "^2.0.0",
     "node-lmdb": "^0.8.0",
-    "roaring": "^1.0.6"
+    "roaring": "github:cigolpl/roaring-node"
   },
   "devDependencies": {
     "expect": "^1.20.2",

@@ -92,5 +92,21 @@ describe('indexing', function() {
     done();
   })
 
+  it('search 3', function test(done) {
+
+    var itemsjs = require('./../src/index')(configuration);
+
+    itemsjs.index(items);
+
+    var result = itemsjs.search({
+      filters: {
+      }
+    });
+
+    assert.equal(result.data.items.length, 4);
+
+    done();
+  })
+
 })
 

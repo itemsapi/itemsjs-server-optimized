@@ -92,10 +92,28 @@ module.exports.search = function(input, configuration, facets) {
     filtered_indexes = RoaringBitmap32.and(fulltext.bits_ids(), facets_ids_bits).toArray();
   }*/
 
-  var filtered_indexes_bitmap = RoaringBitmap32.and(_ids_bitmap, facets_ids_bits);
-  var filtered_indexes = filtered_indexes_bitmap.toArray();
+  var filtered_indexes_bitmap = _ids_bitmap;
 
-  var new_items_indexes = filtered_indexes.slice((page - 1) * per_page, page * per_page);
+  if (facets_ids_bits) {
+    filtered_indexes_bitmap = RoaringBitmap32.and(_ids_bitmap, facets_ids_bits);
+  }
+
+
+  var new_items_indexes = filtered_indexes_bitmap.rangeUint32Array((page - 1) * per_page, per_page);
+
+
+  /*var time = new Date().getTime();
+  var filtered_indexes = filtered_indexes_bitmap.toArray();
+  time = new Date().getTime() - time;
+  console.log('ids bitmap to array: ' + time);
+
+  var new_items_indexes = filtered_indexes.slice((page - 1) * per_page, page * per_page);*/
+
+
+  //console.log(aaa);
+  //console.log(new_items_indexes);
+
+
   var new_items;
 
   /*new_items = _.map(new_items_indexes, id => {
@@ -129,7 +147,7 @@ module.exports.search = function(input, configuration, facets) {
     pagination: {
       per_page: per_page,
       page: page,
-      total: filtered_indexes.length
+      total: filtered_indexes_bitmap.size
     },
     timings: {
       total: total_time,
