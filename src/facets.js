@@ -8,17 +8,8 @@ const addon = require('bindings')('itemsjs_addon.node');
 /**
  * responsible for making faceted search
  */
-var Facets = function(config) {
-
-  config = config || {};
-  //config.searchableFields = config.searchableFields || [];
-  //this.items = items;
-  this.config = config;
-
-  //this.facets = helpers2.index(items, config);
-  //console.log(facets);
-  //console.log(facets);
-
+var Facets = function() {
+  this.config = {};
 };
 
 Facets.prototype = {
@@ -27,17 +18,11 @@ Facets.prototype = {
     return this.items;
   },
 
-  index: function(items, config) {
+  index: function(items, configuration) {
 
-    config = config || {};
-    this.items = items;
-    this.config = config;
+    configuration = configuration || {};
 
-    // memory index
-    //this.facets = helpers2.index(this.items, this.config);
-
-    // file index
-    //this.facets = helpers2.index(this.items, this.config);
+    storage.setConfiguration(configuration);
 
     if (typeof items === 'string' || items instanceof String) {
       addon.index({
@@ -47,23 +32,17 @@ Facets.prototype = {
       addon.index({
         json_object: items
       })
-
     }
 
-
-
-    //return this.facets;
   },
 
   get_index: function() {
     return this.facets;
   },
 
-  /*reindex: function() {
-    this.facets = helpers2.index(this.items, this.config);
-
-    return this.facets;
-  },*/
+  configuration: function() {
+    return storage.getConfiguration();
+  },
 
   /*
    *
@@ -71,29 +50,10 @@ Facets.prototype = {
    */
   search: function(input, data) {
 
-    //console.log('search helper');
-    //console.log(this.config);
-    //console.log(input);
-    //console.log(this.facets['data']);
-
-    var config = this.config;
-    //var fields = _.keys(input);
-    // clone facets
-    //var temp_facet = _.clone(this.facets);
+    var configuration = this.configuration();
+    var config = configuration.aggregations;
 
     data = data || {};
-
-    /*var temp_facet = _.clone(this.facets);
-    // working copy from memory
-    _.mapValues(temp_facet['bits_data'], function(values, key) {
-      _.mapValues(temp_facet['bits_data'][key], function(facet_indexes, key2) {
-        temp_facet['bits_data_temp'][key][key2] = temp_facet['bits_data'][key][key2];
-      })
-    })*/
-
-
-
-    //console.log(storage.getKeysList());
 
     /**
      * get facets from file memory db

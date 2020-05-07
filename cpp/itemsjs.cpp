@@ -181,6 +181,7 @@ std::string itemsjs::index(string json_path, string json_string) {
   elapsed = std::chrono::high_resolution_clock::now() - start;
   std::cout << "facets commit time: " << elapsed.count() / 1000000<< std::endl;
 
+  cout << "finished indexing" << endl;
 
   return "index";
 }

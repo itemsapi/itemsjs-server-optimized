@@ -1,9 +1,8 @@
 'use strict';
 
-const should = require('should');
-const expect = require('expect');
 const assert = require('assert');
 const Facets = require('./../src/facets');
+const storage = require('./../src/storage');
 const lib = require('./../src/lib');
 
 var items = [{
@@ -49,12 +48,32 @@ var configuration = {
   }
 }
 
-describe('indexing', function() {
+describe('search', function() {
+
+  before(function() {
+    storage.deleteConfiguration();
+  });
+
+  it('index is empty so cannot search', function test(done) {
+
+    var itemsjs = require('./../src/index')();
+
+
+    try {
+
+      var result = itemsjs.search();
+    } catch (err) {
+      assert.equal(err.message, 'index first then search');
+    }
+
+    done();
+  })
+
 
   it('search 1', function test(done) {
 
-    var facets = new Facets(configuration.aggregations);
-    facets.index(items, configuration.aggregations);
+    var facets = new Facets();
+    facets.index(items, configuration);
 
     var input = {
       filters: {
@@ -76,9 +95,9 @@ describe('indexing', function() {
 
   it('search 2', function test(done) {
 
-    var itemsjs = require('./../src/index')(configuration);
+    var itemsjs = require('./../src/index')();
 
-    itemsjs.index(items);
+    itemsjs.index(items, configuration);
 
     var result = itemsjs.search({
       filters: {
@@ -94,9 +113,9 @@ describe('indexing', function() {
 
   it('search 3', function test(done) {
 
-    var itemsjs = require('./../src/index')(configuration);
+    var itemsjs = require('./../src/index')();
 
-    itemsjs.index(items);
+    itemsjs.index(items, configuration);
 
     var result = itemsjs.search({
       filters: {
@@ -107,6 +126,7 @@ describe('indexing', function() {
 
     done();
   })
+
 
 })
 

@@ -1,15 +1,16 @@
-const service = require('./lib');
+const lib = require('./lib');
 const _ = require('lodash');
 const helpers = require('./helpers');
 const Fulltext = require('./fulltext');
 const Facets = require('./facets');
+const storage = require('./storage');
 const addon = require('bindings')('itemsjs_addon.node');
 
-module.exports = function itemsjs(configuration) {
+module.exports = function itemsjs() {
 
-  configuration = configuration || {};
+  //configuration = configuration || {};
 
-  var facets = new Facets(configuration.aggregations);
+  var facets = new Facets();
 
   return {
 
@@ -18,12 +19,9 @@ module.exports = function itemsjs(configuration) {
      * json_string
      * json_path
      */
-    index: function(items) {
-
-      facets.index(items, configuration.aggregations);
+    index: function(items, configuration) {
+      facets.index(items, configuration);
     },
-
-
 
     /**
      * per_page
@@ -35,12 +33,18 @@ module.exports = function itemsjs(configuration) {
     search: function(input) {
       input = input || {};
 
+      configuration = storage.getConfiguration();
+
+      if (!configuration) {
+        throw new Error('index first then search');
+      }
+
       /**
        * merge configuration aggregation with user input
        */
       input.aggregations = helpers.mergeAggregations(configuration.aggregations, input);
 
-      return service.search(input, configuration, facets);
+      return lib.search(input, configuration, facets);
     },
 
     /**

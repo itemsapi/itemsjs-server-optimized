@@ -1,19 +1,9 @@
 'use strict';
 
-const should = require('should');
-const expect = require('expect');
 const assert = require('assert');
-const service = require('./../src/lib');
-const sinon = require('sinon');
-const Facets = require('./../src/facets');
 const storage = require('./../src/storage');
-//const storage = require('./../src/storage')({
-  //database: 'moja_nowa'
-//});
 const helpers2 = require('./../src/helpers2');
-const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 const addon = require('bindings')('itemsjs_addon.node');
-const lmdb = require('node-lmdb');
 
 var data = [{
   id: 1,
