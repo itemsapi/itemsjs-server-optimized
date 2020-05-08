@@ -13,7 +13,7 @@
         "<!@(node -p \"require('node-addon-api').include\")"
       ],
       'libraries': [
-        "/usr/lib/x86_64-linux-gnu/liblmdb.so"
+        "<!(node -p \"require('./src/binding').liblmdb()\")"
       ],
       "xcode_settings": {
         "OTHER_CFLAGS": ["-std=c++17"],
@@ -26,7 +26,22 @@
       },
       'dependencies': [
         "<!(node -p \"require('node-addon-api').gyp\")"
+
       ],
-      'defines': [ 'NAPI_DISABLE_CPP_EXCEPTIONS' ]
+      'defines': [ 'NAPI_DISABLE_CPP_EXCEPTIONS' ],
+
+      'conditions': [
+        ['OS=="linux"', {
+          'libraries': [
+          ],
+        }],
+      ['OS=="win"', {
+        'defines': [
+        ],
+      }]
+      ]
+
+
+
   }]
 }

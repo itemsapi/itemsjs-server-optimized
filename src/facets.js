@@ -18,22 +18,10 @@ Facets.prototype = {
     return this.items;
   },
 
-  index: function(items, configuration) {
+  index: function(data) {
 
-    configuration = configuration || {};
-
-    storage.setConfiguration(configuration);
-
-    if (typeof items === 'string' || items instanceof String) {
-      addon.index({
-        json_path: items
-      })
-    } else {
-      addon.index({
-        json_object: items
-      })
-    }
-
+    storage.setConfiguration(data.configuration);
+    addon.index(data);
   },
 
   get_index: function() {

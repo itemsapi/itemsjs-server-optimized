@@ -25,10 +25,23 @@ std::string itemsjs::json(){
   return "json";
 }
 
+std::string itemsjs::json_at(string json_path, int i) {
+
+  simdjson::dom::parser parser;
+  simdjson::dom::element items;
+
+  items = parser.load(json_path);
+
+  dom::element first = items.at(i);
+  //std::cout << first << std::endl;
+  string sv = simdjson::minify(first);
+  return sv;
+}
+
 std::string itemsjs::index(string json_path, string json_string) {
 
   auto env = lmdb::env::create();
-  env.set_mapsize(10UL * 1024UL * 1024UL * 1024UL); /* 1 GiB */
+  env.set_mapsize(10UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
   env.set_max_dbs(3);
   env.open("./example.mdb", 0, 0664);
 
@@ -200,6 +213,19 @@ Napi::String itemsjs::JsonWrapped(const Napi::CallbackInfo& info) {
   return returnValue;
 }
 
+Napi::String itemsjs::JsonAtWrapped(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  Napi::String returnValue;
+
+
+  Napi::String json_path = info[0].As<Napi::String>();
+  Napi::Number at = info[1].As<Napi::Number>();
+  return Napi::String::New(env, itemsjs::json_at(json_path, at));
+
+  return returnValue;
+}
+
 Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
@@ -249,6 +275,7 @@ Napi::Object itemsjs::Init(Napi::Env env, Napi::Object exports) {
   exports.Set("hello", Napi::Function::New(env, itemsjs::HelloWrapped));
   exports.Set("index", Napi::Function::New(env, itemsjs::IndexWrapped));
   exports.Set("json", Napi::Function::New(env, itemsjs::JsonWrapped));
+  exports.Set("json_at", Napi::Function::New(env, itemsjs::JsonAtWrapped));
   //exports.Set("add", Napi::Function::New(env, itemsjs::IndexWrapped));
   //exports.Set("update", Napi::Function::New(env, itemsjs::IndexWrapped));
   //exports.Set("delete", Napi::Function::New(env, itemsjs::IndexWrapped));

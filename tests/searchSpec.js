@@ -73,7 +73,10 @@ describe('search', function() {
   it('search 1', function test(done) {
 
     var facets = new Facets();
-    facets.index(items, configuration);
+    facets.index({
+      json_object: items,
+      configuration: configuration
+    });
 
     var input = {
       filters: {
@@ -97,7 +100,10 @@ describe('search', function() {
 
     var itemsjs = require('./../src/index')();
 
-    itemsjs.index(items, configuration);
+    itemsjs.index({
+      json_object: items,
+      configuration: configuration
+    });
 
     var result = itemsjs.search({
       filters: {
@@ -115,7 +121,10 @@ describe('search', function() {
 
     var itemsjs = require('./../src/index')();
 
-    itemsjs.index(items, configuration);
+    itemsjs.index({
+      json_object: items,
+      configuration: configuration
+    });
 
     var result = itemsjs.search({
       filters: {

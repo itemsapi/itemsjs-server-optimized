@@ -61,7 +61,10 @@ describe('conjunctive search', function() {
 
   before(function() {
     facets = new Facets();
-    facets.index(items, configuration);
+    facets.index({
+      json_object: items,
+      configuration: configuration
+    });
   });
 
   //var itemsjs = require('./../index')(items, {
@@ -253,7 +256,10 @@ describe('disjunctive search', function() {
 
   before(function() {
     facets = new Facets();
-    facets.index(items, configuration);
+    facets.index({
+      json_object: items,
+      configuration: configuration
+    });
   });
 
 
@@ -369,7 +375,10 @@ describe('disjunctive and conjunctive search', function() {
 
   before(function() {
     facets = new Facets();
-    facets.index(items, configuration);
+    facets.index({
+      json_object: items,
+      configuration: configuration
+    });
   });
 
 
@@ -488,7 +497,10 @@ describe('generates facets crossed with query', function() {
 
   before(function() {
     facets = new Facets();
-    facets.index(items, configuration);
+    facets.index({
+      json_object: items,
+      configuration: configuration
+    });
   });
 
   it('checks configuration', function test(done) {
