@@ -83,6 +83,7 @@ Facets.prototype = {
 
     var time = new Date().getTime();
     var indexes = storage.getFilterIndexes();
+    console.log(`load indexes: ${new Date().getTime() - time}`);
 
     _.mapValues(indexes, function(bitmap, key) {
 
@@ -100,8 +101,8 @@ Facets.prototype = {
 
       temp_facet['bits_data_temp'][key1][key2] = bitmap;
     })
-    time = new Date().getTime() - time;
-    console.log('load indexes from db + parsing: ' + time);
+    console.log(`load indexes from db + parsing: ${new Date().getTime() - time}`);
+    console.log(`calculation done for: ${Object.keys(indexes).length} filters`);
 
 
 

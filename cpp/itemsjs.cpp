@@ -114,7 +114,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
        */
       for(auto field : faceted_fields) {
 
-        if (value.type() == dom::element_type::ARRAY) {
+        if (key == field and value.type() == dom::element_type::ARRAY) {
 
           for (auto filter : value) {
 
