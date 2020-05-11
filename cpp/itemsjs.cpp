@@ -38,7 +38,7 @@ std::string itemsjs::json_at(string json_path, int i) {
   return sv;
 }
 
-std::string itemsjs::index(string json_path, string json_string) {
+std::string itemsjs::index(string json_path, string json_string, vector<string> &faceted_fields) {
 
   auto env = lmdb::env::create();
   env.set_mapsize(10UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
@@ -108,32 +108,38 @@ std::string itemsjs::index(string json_path, string json_string) {
 
     for (auto [key, value] : item) {
 
-      if (value.type() == dom::element_type::ARRAY) {
 
-        for (auto filter : value) {
-          //cout << "key: " << key <<  " filter: " << filter << endl;
+      /**
+       * enumerate over faceted fields
+       */
+      for(auto field : faceted_fields) {
+
+        if (value.type() == dom::element_type::ARRAY) {
+
+          for (auto filter : value) {
+
+            facets3[key][filter].push_back(i);
+            roar[key][filter].add(i);
+          }
+        }
+
+        else if (key == field and value.type() == dom::element_type::INT64) {
+
+          string year(to_string(int64_t(value)));
+          char *char_array = new char [year.length()];
+          strcpy(char_array, year.c_str());
+          string_view filter (char_array, year.length());
 
           facets3[key][filter].push_back(i);
           roar[key][filter].add(i);
         }
-      }
 
-      else if (key == "year" and value.type() == dom::element_type::INT64) {
+        else if (key == field and value.type() == dom::element_type::STRING) {
 
-        string year(to_string(int64_t(value)));
-        char *char_array = new char [year.length()];
-        strcpy(char_array, year.c_str());
-        string_view filter (char_array, year.length());
-
-        facets3[key][filter].push_back(i);
-        roar[key][filter].add(i);
-      }
-
-      else if (key == "category" and value.type() == dom::element_type::STRING) {
-
-        string_view filter (value);
-        facets3[key][filter].push_back(i);
-        roar[key][filter].add(i);
+          string_view filter (value);
+          facets3[key][filter].push_back(i);
+          roar[key][filter].add(i);
+        }
       }
 
     }
@@ -241,6 +247,28 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
   Napi::String returnValue;
   string json_string;
 
+
+  vector<string> faceted_fields_array;
+  Napi::Value faceted_fields_value = first.Get("faceted_fields");
+
+  if (faceted_fields_value.IsArray()) {
+    Napi::Array faceted_fields = faceted_fields_value.As<Napi::Array>();
+
+    for (unsigned int i = 0 ; i < faceted_fields.Length() ; ++i) {
+
+      Napi::Value element = faceted_fields.Get(to_string(i));
+      string v = element.ToString();
+
+      faceted_fields_array.push_back(v);
+    }
+  }
+
+  //cout << faceted_fields.IsArray() << endl;
+  //cout << faceted_fields.Length() << endl;
+  //cout << faceted_fields.Get("0").IsString() << endl;
+  //cout << faceted_fields.Get("0").ToString() << endl;
+  //cout << faceted_fields.Get("1").As<Napi::String>() << endl;
+
   if (first.Has("json_object")) {
 
     Napi::Value json_object = first.Get("json_object");
@@ -249,21 +277,21 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
     Napi::Function stringify = json.Get("stringify").As<Napi::Function>();
     string json_string =  stringify.Call(json, { json_object }).As<Napi::String>();
 
-    returnValue = Napi::String::New(env, itemsjs::index("", json_string));
+    returnValue = Napi::String::New(env, itemsjs::index("", json_string, faceted_fields_array));
 
   } else if (first.Has("json_path")) {
 
     Napi::Value json_path = first.Get("json_path");
     string json_path_string(json_path.ToString());
 
-    returnValue = Napi::String::New(env, itemsjs::index(json_path_string, ""));
+    returnValue = Napi::String::New(env, itemsjs::index(json_path_string, "", faceted_fields_array));
 
   } else if (first.Has("json_string")) {
 
     Napi::Value json_string = first.Get("json_string");
     string json_string_string(json_string.ToString());
 
-    returnValue = Napi::String::New(env, itemsjs::index("", json_string_string));
+    returnValue = Napi::String::New(env, itemsjs::index("", json_string_string, faceted_fields_array));
   }
 
 

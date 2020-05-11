@@ -15,12 +15,16 @@ module.exports = function itemsjs() {
   return {
 
     /**
-     * items as json_object
-     * json_string
-     * json_path
      */
-    index: function(items, configuration) {
-      facets.index(items, configuration);
+    index: function(data) {
+      facets.index(data);
+    },
+
+    /**
+     * put settings
+     */
+    set_configuration: function(data) {
+      facets.set_configuration(data);
     },
 
     /**

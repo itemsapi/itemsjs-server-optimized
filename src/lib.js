@@ -152,10 +152,8 @@ module.exports.search = function(input, configuration, facets) {
     timings: {
       total: total_time,
       sort: sort_time,
-      facets: facets_time,
-      //filters: filters_time,
-      new_facets: new_facet_time,
-      new_filters: facets_ids_time,
+      facets: new_facet_time,
+      filters: facets_ids_time,
       search: search_time,
       sorting: sorting_time
     },

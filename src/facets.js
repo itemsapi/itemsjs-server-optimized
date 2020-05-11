@@ -20,12 +20,32 @@ Facets.prototype = {
 
   index: function(data) {
 
-    storage.setConfiguration(data.configuration);
+    //data.configuration.aggregations = data.configuration.aggregations || {};
+
+    var configuration = data.configuration;
+
+    if (configuration) {
+      storage.setConfiguration(configuration);
+    } else {
+      configuration = this.configuration();
+      if (!configuration) {
+        throw new Error('Configuration needed first for indexing');
+      }
+    }
+
+    if (configuration.aggregations) {
+      data.faceted_fields = _.keys(configuration.aggregations);
+    }
+
     addon.index(data);
   },
 
   get_index: function() {
     return this.facets;
+  },
+
+  set_configuration: function(configuration) {
+    storage.setConfiguration(configuration);
   },
 
   configuration: function() {
@@ -40,6 +60,10 @@ Facets.prototype = {
 
     var configuration = this.configuration();
     var config = configuration.aggregations;
+
+    if (!config) {
+      throw new Error('Not found configuration for faceted search');
+    }
 
     data = data || {};
 

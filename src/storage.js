@@ -67,6 +67,11 @@ module.exports.getFilterIndex = function(key) {
   //var binary = txn.getBinary(dbi, new Buffer.from('actors.Al Pacino'));
   var binary = txn.getBinary(dbi, new Buffer.from(key));
   txn.abort();
+
+  if (!binary) {
+    return;
+  }
+
   var bitmap = RoaringBitmap32.deserialize(binary, true);
 
 

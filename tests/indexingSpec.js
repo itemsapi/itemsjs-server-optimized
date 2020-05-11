@@ -38,6 +38,7 @@ describe('indexing', function() {
     //var index = addon.index('/home/mateusz/node/items-benchmark/datasets/shoprank_full.json');
     var index = addon.index({
       json_path: './tests/fixtures/movies.json',
+      faceted_fields: ['actors', 'genres', 'year', 'director']
       //fields: ['actors', 'genres', 'year']
     });
 
@@ -56,6 +57,7 @@ describe('indexing', function() {
 
     var filter_index = storage.getFilterIndex('director.Sergio Leone');
     assert.deepEqual(1, filter_index.size);
+
 
     var filter_indexes = storage.getFilterIndexes();
     assert.deepEqual(1, filter_indexes['director.Sergio Leone'].size);
@@ -88,7 +90,8 @@ describe('indexing', function() {
   it('checks index creating from non json object', function test(done) {
 
     var index = addon.index({
-      json_object: data
+      json_object: data,
+      faceted_fields: ['category', 'actors', 'tags']
     });
 
     var item = storage.getItem(1);
@@ -100,13 +103,24 @@ describe('indexing', function() {
     var items = storage.getItems([1, 2]);
     assert.deepEqual(items[0].name, 'movie1');
 
+
+    var filter_index = storage.getFilterIndex('category.drama');
+    assert.deepEqual(2, filter_index.size);
+
+    var filter_index = storage.getFilterIndex('actors.john');
+    assert.deepEqual(2, filter_index.size);
+
+    var filter_index = storage.getFilterIndex('id.1');
+    assert.deepEqual(undefined, filter_index);
+
     done();
   })
 
   it('checks index creating from stringified json', function test(done) {
 
     var index = addon.index({
-      json_string: JSON.stringify(data)
+      json_string: JSON.stringify(data),
+      faceted_fields: ['category', 'actors', 'tags']
     });
 
     var item = storage.getItem(1);
