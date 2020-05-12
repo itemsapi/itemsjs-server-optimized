@@ -79,11 +79,25 @@ describe('indexing', function() {
     var ids = storage.getIdsBitmap();
     assert.deepEqual(ids.size, 20);
 
-    //var items = storage.getItems([1, 2]);
-    //assert.deepEqual(items[0].name, 'The Shawshank Redemption');
+    var index = storage.getSearchTermIndex('shawshank');
+    assert.deepEqual(1, index.size);
 
-    //var items = storage.getItems([1, 2, 3]);
-    //assert.deepEqual(items[0].name, 'The Shawshank Redemption');
+    var index = storage.getSearchTermIndex('lead');
+    assert.deepEqual(1, index.size);
+
+    var index = storage.getSearchTermIndex('men');
+    console.log(index.toArray());
+    assert.deepEqual(6, index.size);
+
+    var index = storage.getSearchTermIndex('henry');
+    assert.deepEqual(2, index.size);
+
+    var index = storage.getSearchTermIndex('fonda');
+    assert.deepEqual(1, index.size);
+
+    var index = storage.getSearchTermIndex('ojojoj');
+    assert.deepEqual(undefined, index);
+
     done();
   })
 
