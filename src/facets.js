@@ -53,6 +53,38 @@ Facets.prototype = {
   },
 
   /*
+   * split query for normalized tokens
+   */
+  query_parser: function(query) {
+
+    return _.chain(query).split(' ')
+    .filter(v => {
+      return v.trim();
+    })
+    .value();
+  },
+
+  /*
+   * makes full text search
+   */
+  fulltext: function(input) {
+
+    var query = input.query || '';
+
+    var tokens = this.query_parser(query);
+
+    var bitmap = new RoaringBitmap32([]);
+    tokens.forEach(token => {
+      var index = storage.getSearchTermIndex(token);
+      if (index) {
+        bitmap = RoaringBitmap32.or(index, bitmap);
+      }
+    })
+
+    return bitmap;
+  },
+
+  /*
    *
    * ids is optional only when there is query
    */
@@ -184,18 +216,6 @@ Facets.prototype = {
               cond = 4;
             }
 
-            //if (filter === 'France' && key === 'country') {
-            //if (key2 === 'Norway' || key2 === 'Nginx') {
-            if (0 &&
-              ['Norway', 'France', 'Nginx'].indexOf(key2) !== -1 &&
-              ['Norway', 'France', 'Nginx'].indexOf(filter) !== -1
-            ) {
-              console.log(key2, filter, cond);
-              console.log(facet_indexes.toArray());
-              console.log(filter_indexes.toArray());
-              console.log(result.toArray());
-            }
-
             temp_facet['bits_data_temp'][key][key2] = result;
           })
         })
@@ -204,7 +224,6 @@ Facets.prototype = {
 
     time = new Date().getTime() - time;
     console.log('crossing matrix: ' + time);
-
 
 
     // -------------------------------

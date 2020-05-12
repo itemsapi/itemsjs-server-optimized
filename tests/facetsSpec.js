@@ -7,11 +7,10 @@ const service = require('./../src/lib');
 const sinon = require('sinon');
 const Facets = require('./../src/facets');
 const helpers2 = require('./../src/helpers2');
+const storage = require('./../src/storage');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 
-//https://jsfiddle.net/38a2xc1j/4/
-
-
+var facets;
 var items = [{
   id: 1,
   name: 'movie1',
@@ -39,36 +38,43 @@ var items = [{
 }]
 
 describe('indexing', function() {
-
-
 })
 
 describe('conjunctive search', function() {
 
-  var aggregations = {
-    tags: {
-      title: 'Tags',
-      conjunction: true,
-    },
-    actors: {
-      title: 'Actors',
-      conjunction: true,
-    },
-    category: {
-      title: 'Category',
-      conjunction: true,
+  var configuration = {
+    aggregations: {
+      tags: {
+        title: 'Tags',
+        conjunction: true,
+      },
+      actors: {
+        title: 'Actors',
+        conjunction: true,
+      },
+      category: {
+        title: 'Category',
+        conjunction: true,
+      }
     }
   }
 
-  var facets = new Facets(items, aggregations);
-  var itemsjs = require('./../index')(items, {
-    aggregations: aggregations
+  before(function() {
+    facets = new Facets();
+    facets.index({
+      json_object: items,
+      configuration: configuration
+    });
   });
+
+  //var itemsjs = require('./../index')(items, {
+    //aggregations: aggregations
+  //});
 
   it('checks index', function test(done) {
 
-    var result = facets.index();
-    assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
+    //var result = facets.get_index();
+    /*assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
     assert.deepEqual(result.bits_data.tags.a.toArray(), [1, 2, 3, 4]);
     assert.deepEqual(result.data.tags.b, [1]);
     assert.deepEqual(result.bits_data.tags.b.toArray(), [1]);
@@ -79,7 +85,7 @@ describe('conjunctive search', function() {
     assert.deepEqual(result.data.actors.jean, [4]);
     assert.deepEqual(result.bits_data.actors.jean.toArray(), [4]);
     assert.deepEqual(result.data.actors.john, [1, 2]);
-    assert.deepEqual(result.bits_data.actors.john.toArray(), [1, 2]);
+    assert.deepEqual(result.bits_data.actors.john.toArray(), [1, 2]);*/
 
     done();
   })
@@ -102,27 +108,20 @@ describe('conjunctive search', function() {
     assert.deepEqual(result.data.actors.john, [1]);
     assert.deepEqual(result.data.category.comedy, [3]);
 
-    var ids = helpers2.facets_ids(result['bits_data_temp'], input, aggregations);
+    var ids = helpers2.facets_ids(result['bits_data_temp'], input, configuration.aggregations);
     assert.deepEqual(ids.toArray(), [1, 3, 4]);
 
-    var buckets = helpers2.getBuckets(result, input, aggregations);
+    var buckets = helpers2.getBuckets(result, input, configuration.aggregations);
     //console.log(buckets.tags.buckets);
     assert.deepEqual(buckets.tags.buckets[0].doc_count, 3);
     assert.deepEqual(buckets.tags.buckets[0].key, 'c');
 
 
 
-    var result = itemsjs.search(input);
-    //console.log(result.data);
-    //console.log(result.data.aggregations.tags);
-
-    assert.deepEqual(result.pagination.total, 3);
-    // omit _id in search result
-    //assert.deepEqual(result.data.items[0]._id, undefined);
-    assert.deepEqual(result.data.aggregations.tags.buckets[0].doc_count, 3);
-    assert.deepEqual(result.data.aggregations.tags.buckets[0].key, 'c');
-
-
+    //var result = itemsjs.search(input);
+    //assert.deepEqual(result.pagination.total, 3);
+    //assert.deepEqual(result.data.aggregations.tags.buckets[0].doc_count, 3);
+    //assert.deepEqual(result.data.aggregations.tags.buckets[0].key, 'c');
 
     done();
   })
@@ -166,18 +165,13 @@ describe('conjunctive search', function() {
     assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
     assert.deepEqual(result.data.tags.e, [2]);
 
-    var ids = helpers2.facets_ids(result['bits_data_temp'], input, aggregations);
+    var ids = helpers2.facets_ids(result['bits_data_temp'], input, configuration.aggregations);
     assert.deepEqual(ids, null);
 
-    var result = itemsjs.search(input);
-    console.log(result.data);
-    console.log(result.data.aggregations.tags);
-
-    assert.deepEqual(result.pagination.total, 4);
-    // omit _id in search result
-    //assert.deepEqual(result.data.items[0]._id, undefined);
-    assert.deepEqual(result.data.aggregations.tags.buckets[0].doc_count, 4);
-    assert.deepEqual(result.data.aggregations.tags.buckets[0].key, 'a');
+    //var result = itemsjs.search(input);
+    //assert.deepEqual(result.pagination.total, 4);
+    //assert.deepEqual(result.data.aggregations.tags.buckets[0].doc_count, 4);
+    //assert.deepEqual(result.data.aggregations.tags.buckets[0].key, 'a');
 
 
 
@@ -245,21 +239,39 @@ describe('conjunctive search', function() {
 
 describe('disjunctive search', function() {
 
-  var aggregations = {
-    tags: {
-      conjunction: false,
-    },
-    actors: {
-      conjunction: false,
-    },
-    category: {
-      conjunction: false,
+  var configuration = {
+    aggregations: {
+      tags: {
+        conjunction: false,
+      },
+      actors: {
+        conjunction: false,
+      },
+      category: {
+        conjunction: false,
+      }
     }
   }
 
-  var facets = new Facets(items, aggregations);
+
+  before(function() {
+    facets = new Facets();
+    facets.index({
+      json_object: items,
+      configuration: configuration
+    });
+  });
+
+
+
+
+  it('checks configuration', function test(done) {
+    assert.deepEqual(facets.configuration(), configuration);
+    done();
+  })
 
   it('makes disjunction union', function test(done) {
+
 
     var facets_bits = {
       tags: {
@@ -278,7 +290,7 @@ describe('disjunctive search', function() {
       }
     }
 
-    var union = helpers2.disjunction_union(facets_bits, input, aggregations);
+    var union = helpers2.disjunction_union(facets_bits, input, configuration.aggregations);
     assert.deepEqual(union.tags.toArray(), [1, 2, 3, 5]);
     assert.deepEqual(union.actors, undefined);
 
@@ -288,7 +300,7 @@ describe('disjunctive search', function() {
       }
     }
 
-    var union = helpers2.disjunction_union(facets_bits, input, aggregations);
+    var union = helpers2.disjunction_union(facets_bits, input, configuration.aggregations);
     assert.deepEqual(union.tags.toArray(), [1, 2, 3]);
 
     done();
@@ -301,6 +313,8 @@ describe('disjunctive search', function() {
         tags: ['c']
       }
     }
+
+    console.log(facets.configuration())
 
     var result = facets.search(input, {
       test: true
@@ -345,20 +359,33 @@ describe('disjunctive search', function() {
 
 describe('disjunctive and conjunctive search', function() {
 
-  var aggregations = {
-    tags: {
-      conjunction: true,
-    },
-    actors: {
-      conjunction: true,
-    },
-    category: {
-      conjunction: false
+  var configuration = {
+    aggregations: {
+      tags: {
+        conjunction: true,
+      },
+      actors: {
+        conjunction: true,
+      },
+      category: {
+        conjunction: false
+      }
     }
   }
 
-  var facets = new Facets(items, aggregations);
+  before(function() {
+    facets = new Facets();
+    facets.index({
+      json_object: items,
+      configuration: configuration
+    });
+  });
 
+
+  it('checks configuration', function test(done) {
+    assert.deepEqual(facets.configuration(), configuration);
+    done();
+  })
 
   it('makes combination', function test(done) {
 
@@ -381,7 +408,7 @@ describe('disjunctive and conjunctive search', function() {
       }
     }
 
-    var combination = helpers2.combination(facets_bits, input, aggregations);
+    var combination = helpers2.combination(facets_bits, input, configuration.aggregations);
     assert.deepEqual(combination.tags.toArray(), [1, 2, 3]);
 
 
@@ -435,7 +462,7 @@ describe('disjunctive and conjunctive search', function() {
     assert.deepEqual(result.data.category.comedy, [3]);
     assert.deepEqual(result.data.category.drama, [1, 4]);
 
-    var ids = helpers2.facets_ids(result['bits_data_temp'], input, aggregations);
+    var ids = helpers2.facets_ids(result['bits_data_temp'], input, configuration.aggregations);
     assert.deepEqual(ids.toArray(), [1, 4]);
 
     done();
@@ -453,23 +480,38 @@ describe('disjunctive and conjunctive search', function() {
 
 describe('generates facets crossed with query', function() {
 
-  var aggregations = {
-    tags: {
-      conjunction: true,
-    },
-    actors: {
-      conjunction: true,
-    },
-    category: {
-      conjunction: false
+  var configuration =  {
+    aggregations: {
+      tags: {
+        conjunction: true,
+      },
+      actors: {
+        conjunction: true,
+      },
+      category: {
+        conjunction: false
+      }
     }
   }
 
-  var facets = new Facets(items, aggregations);
-  var itemsjs = require('./../index')(items, {
-    aggregations: aggregations,
-    searchableFields: ['actors'],
+
+  before(function() {
+    facets = new Facets();
+    facets.index({
+      json_object: items,
+      configuration: configuration
+    });
   });
+
+  it('checks configuration', function test(done) {
+    assert.deepEqual(facets.configuration(), configuration);
+    done();
+  })
+
+  //var itemsjs = require('./../index')(items, {
+    //aggregations: aggregations,
+    //searchableFields: ['actors'],
+  //});
 
   it('returns facets for searched ids', function test(done) {
 
@@ -514,12 +556,9 @@ describe('generates facets crossed with query', function() {
       query: 'john'
     }
 
-    var result = itemsjs.search(input);
-    //console.log(result.data);
-    //console.log(result.data.aggregations.tags);
-
-    assert.deepEqual(result.data.aggregations.tags.buckets[0].key, 'a');
-    assert.deepEqual(result.data.aggregations.tags.buckets[0].doc_count, 2);
+    //var result = itemsjs.search(input);
+    //assert.deepEqual(result.data.aggregations.tags.buckets[0].key, 'a');
+    //assert.deepEqual(result.data.aggregations.tags.buckets[0].doc_count, 2);
 
     done();
   })

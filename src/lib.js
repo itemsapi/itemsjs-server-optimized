@@ -17,8 +17,14 @@ module.exports.search = function(input, configuration, facets) {
 
   var per_page = parseInt(input.per_page || 12);
   var page = parseInt(input.page || 1);
-
+  var query_ids;
   var search_time = 0;
+
+  if (input.query) {
+    query_ids = facets.fulltext(input);
+    console.log(query_ids);
+  }
+
   var total_time_start = new Date().getTime();
 
   /**
@@ -44,6 +50,10 @@ module.exports.search = function(input, configuration, facets) {
     // it will be loaded with query ids
     query_ids: undefined
   });
+
+
+  console.log('finished facets');
+
   new_facet_time = new Date().getTime() - new_facet_time;
 
 
@@ -68,10 +78,9 @@ module.exports.search = function(input, configuration, facets) {
   var _ids_bitmap = storage.getIdsBitmap();
 
 
-  /*var _ids = fulltext.internal_ids();
   if (input.query) {
-    _ids = sorted_ids;
-  }*/
+    _ids_bitmap = query_ids;
+  }
 
   var filtered_indexes;
 
@@ -101,24 +110,7 @@ module.exports.search = function(input, configuration, facets) {
 
   var new_items_indexes = filtered_indexes_bitmap.rangeUint32Array((page - 1) * per_page, per_page);
 
-
-  /*var time = new Date().getTime();
-  var filtered_indexes = filtered_indexes_bitmap.toArray();
-  time = new Date().getTime() - time;
-  console.log('ids bitmap to array: ' + time);
-
-  var new_items_indexes = filtered_indexes.slice((page - 1) * per_page, page * per_page);*/
-
-
-  //console.log(aaa);
-  //console.log(new_items_indexes);
-
-
   var new_items;
-
-  /*new_items = _.map(new_items_indexes, id => {
-    return fulltext.get_item(id);
-  })*/
 
   new_items = storage.getItems(new_items_indexes);
 
