@@ -29,6 +29,7 @@
     "should": "^11.2.1",
     "sinon": "^2.1.0",
     "flightplan": "^0.6.17",
+    "segfault-handler": "^1.3.0",
     "recursive-readdir-sync": "^1.0.6"
   },
   "directories": {

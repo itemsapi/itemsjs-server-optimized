@@ -3,7 +3,6 @@ const helpers = require('./helpers');
 const helpers2 = require('./helpers2');
 const storage = require('./storage');
 const algo = require('./algo');
-const Fulltext = require('./fulltext');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 
 /**
@@ -18,11 +17,12 @@ module.exports.search = function(input, configuration, facets) {
   var per_page = parseInt(input.per_page || 12);
   var page = parseInt(input.page || 1);
   var query_ids;
-  var search_time = 0;
+  var search_time = new Date().getTime();
 
   if (input.query) {
     query_ids = facets.fulltext(input);
-    console.log(query_ids);
+    search_time = new Date().getTime() - search_time;
+    //console.log(query_ids);
   }
 
   var total_time_start = new Date().getTime();
@@ -48,7 +48,7 @@ module.exports.search = function(input, configuration, facets) {
   //});
   var facet_result = facets.search(input, {
     // it will be loaded with query ids
-    query_ids: undefined
+    query_ids: query_ids
   });
 
 
@@ -64,16 +64,6 @@ module.exports.search = function(input, configuration, facets) {
   // it's super fast around 5ms on 500K records
   var facets_ids_bits = helpers2.facets_ids(facet_result['bits_data_temp'], input, configuration.aggregations);
 
-  //console.log(facets_ids.toArray().length);
-
-  var facets_ids = null;
-
-  if (facets_ids_bits !== null) {
-    facets_ids = facets_ids_bits.toArray();
-  }
-
-
-
   //var _ids = storage.getIds();
   var _ids_bitmap = storage.getIdsBitmap();
 
@@ -84,35 +74,15 @@ module.exports.search = function(input, configuration, facets) {
 
   var filtered_indexes;
 
-
-
-  /**
-   * if query does not exist then take ids from index
-   * if query exists then take newly created (it should be precalculated once making search)
-   * cross query with facets
-   */
-  /*if (facets_ids === null) {
-    filtered_indexes = _ids;
-  } else if (input.query) {
-    filtered_indexes = _.map(items, 'id').filter(v => {
-      return _.sortedIndexOf(facets_ids, v) !== -1;
-    })
-  } else {
-    filtered_indexes = RoaringBitmap32.and(fulltext.bits_ids(), facets_ids_bits).toArray();
-  }*/
-
   var filtered_indexes_bitmap = _ids_bitmap;
 
   if (facets_ids_bits) {
     filtered_indexes_bitmap = RoaringBitmap32.and(_ids_bitmap, facets_ids_bits);
   }
 
-
   var new_items_indexes = filtered_indexes_bitmap.rangeUint32Array((page - 1) * per_page, per_page);
 
-  var new_items;
-
-  new_items = storage.getItems(new_items_indexes);
+  var new_items = storage.getItems(new_items_indexes);
 
   facets_ids_time = new Date().getTime() - facets_ids_time;
   // -------------------------------------

@@ -55,16 +55,6 @@ describe('search', function() {
     done();
   });
 
-  beforeEach(function(done) {
-    console.log('beforek');
-    done();
-  });
-
-  afterEach(function(done) {
-    console.log('afterek');
-    done();
-  });
-
   it('index is empty so cannot search', function test(done) {
 
     var itemsjs = require('./../src/index')();
