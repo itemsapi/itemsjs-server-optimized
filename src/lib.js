@@ -21,9 +21,10 @@ module.exports.search = function(input, configuration, facets) {
 
   if (input.query) {
     query_ids = facets.fulltext(input);
-    search_time = new Date().getTime() - search_time;
     //console.log(query_ids);
   }
+
+  search_time = new Date().getTime() - search_time;
 
   var total_time_start = new Date().getTime();
 
