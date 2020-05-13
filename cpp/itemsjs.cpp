@@ -7,14 +7,13 @@
 #include "simdjson.h"
 #include <bits/stdc++.h>
 #include "lmdb2++.h"
+#include <boost/tokenizer.hpp>
+#include <boost/algorithm/string.hpp>
+
+
 
 using namespace simdjson;
 using namespace std;
-
-map<string_view, map<string_view, vector<int>>> facets3;
-map<string_view, map<string_view, Roaring>> roar;
-vector<string> keys_list;
-Roaring ids;
 
 std::string itemsjs::hello(){
   return "hello";
@@ -38,7 +37,20 @@ std::string itemsjs::json_at(string json_path, int i) {
   return sv;
 }
 
+std::vector<int> lista;
+
 std::string itemsjs::index(string json_path, string json_string, vector<string> &faceted_fields) {
+
+  map<string_view, map<string_view, vector<int>>> facets3;
+  map<string_view, map<string_view, Roaring>> roar;
+  //map<string_view, Roaring> search_roar;
+
+  // @TODO change to string_view for 2x performance on tokenizing search terms
+  map<string, Roaring> search_roar;
+  vector<string> keys_list;
+  Roaring ids;
+
+  typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
 
   auto env = lmdb::env::create();
   env.set_mapsize(10UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
@@ -100,14 +112,13 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   elapsed = std::chrono::high_resolution_clock::now() - start;
   std::cout << "items put commit time: " << elapsed.count() / 1000000<< std::endl;
 
-  std::cout << "start tokenizing and indexing: " << std::endl;
+  //std::cout << "start indexing facets: " << std::endl;
   start = std::chrono::high_resolution_clock::now();
 
   i = 1;
   for (dom::object item : items) {
 
     for (auto [key, value] : item) {
-
 
       /**
        * enumerate over faceted fields
@@ -148,7 +159,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   }
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "roaring time: " << elapsed.count() / 1000000 << std::endl;
+  std::cout << "roaring facets time: " << elapsed.count() / 1000000 << std::endl;
 
 
   wtxn = lmdb::txn::begin(env);
@@ -165,10 +176,6 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
       string name = sv + "." + sv2;
 
       int expectedsize = roar_object.getSizeInBytes();
-
-
-      //cout << "key: " << key <<  " filter: " << filter << endl;
-      //cout << name << endl;
 
       // ensure to free memory somewhere
       char *serializedbytes = new char [expectedsize];
@@ -200,7 +207,124 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   elapsed = std::chrono::high_resolution_clock::now() - start;
   std::cout << "facets commit time: " << elapsed.count() / 1000000<< std::endl;
 
+
+
+
+  //std::cout << "start tokenizing full text: " << std::endl;
+  start = std::chrono::high_resolution_clock::now();
+
+  /**
+   * full text indexing
+   */
+  i = 1;
+  for (dom::object item : items) {
+
+    for (auto [key, value] : item) {
+
+
+      if (value.type() == dom::element_type::ARRAY) {
+
+        for (auto filter : value) {
+
+          //cout << filter.type() << endl;
+
+          if (filter.type() == dom::element_type::STRING) {
+
+            string_view filter2 (filter);
+            tokenizer tok{filter2};
+            for (const auto &t : tok) {
+              string_view token1 (t);
+              string token2(token1);
+              boost::algorithm::to_lower(token2);
+              search_roar[token2].add(i);
+            }
+          }
+
+          //facets3[key][filter].push_back(i);
+          //roar[key][filter].add(i);
+        }
+      }
+
+      else if (value.type() == dom::element_type::STRING) {
+
+        string_view filter (value);
+
+        tokenizer tok{filter};
+        for (const auto &t : tok) {
+          string_view token1 (t);
+          string token2(token1);
+          boost::algorithm::to_lower(token2);
+
+          //std::string_view largeStringView{large.c_str(), large.size()};
+          //std::string_view token4 {token2.c_str(), token2.size()};
+
+          //string_view token3 (token2);
+          //cout << token4 << endl;
+          search_roar[token2].add(i);
+        }
+      }
+    }
+
+    ++i;
+  }
+
+  elapsed = std::chrono::high_resolution_clock::now() - start;
+  std::cout << "roaring full text time: " << elapsed.count() / 1000000 << std::endl;
+
+
+
+
+  wtxn = lmdb::txn::begin(env);
+  dbi = lmdb::dbi::open(wtxn, nullptr);
+
+  start = std::chrono::high_resolution_clock::now();
+  //i = 1;
+  for (auto&& [key, roar_object] : search_roar) {
+
+    std::string sv(key);
+
+    if (sv.length() > 100) {
+      continue;
+    }
+
+    //cout << key << endl;
+
+    string name = "term|||" + sv;
+
+    //cout << key << endl;
+    //cout << roar_object.cardinality() << endl;
+    int expectedsize = roar_object.getSizeInBytes();
+
+    // ensure to free memory somewhere
+    char *serializedbytes = new char [expectedsize];
+    roar_object.write(serializedbytes);
+    std::string_view nowy(serializedbytes, expectedsize);
+
+    //cout << name << endl;
+
+    // ignore long key like
+    //✯✯✯✯✯reviews
+    //term|||✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱ᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇ
+
+    dbi.put(wtxn, name, nowy);
+  }
+
+  elapsed = std::chrono::high_resolution_clock::now() - start;
+  std::cout << "search terms put time: " << elapsed.count() / 1000000<< std::endl;
+
+  start = std::chrono::high_resolution_clock::now();
+  wtxn.commit();
+
+  elapsed = std::chrono::high_resolution_clock::now() - start;
+  std::cout << "search terms commit time: " << elapsed.count() / 1000000<< std::endl;
+
   cout << "finished indexing" << endl;
+
+
+  // global variable
+  lista.push_back(1);
+  cout << "lista size: " << lista.size() << endl;
+
 
   return "index";
 }
@@ -302,6 +426,7 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
 Napi::Object itemsjs::Init(Napi::Env env, Napi::Object exports) {
   exports.Set("hello", Napi::Function::New(env, itemsjs::HelloWrapped));
   exports.Set("index", Napi::Function::New(env, itemsjs::IndexWrapped));
+  //exports.Set("query_parser", Napi::Function::New(env, itemsjs::IndexWrapped));
   exports.Set("json", Napi::Function::New(env, itemsjs::JsonWrapped));
   exports.Set("json_at", Napi::Function::New(env, itemsjs::JsonAtWrapped));
   //exports.Set("add", Napi::Function::New(env, itemsjs::IndexWrapped));

@@ -50,8 +50,9 @@ var configuration = {
 
 describe('search', function() {
 
-  before(function() {
+  before(function(done) {
     storage.deleteConfiguration();
+    done();
   });
 
   it('index is empty so cannot search', function test(done) {
@@ -87,11 +88,30 @@ describe('search', function() {
 
     var result = lib.search(input, configuration, facets);
 
-    //console.log(result);
-    //console.log(result.data.items);
-    //console.log(result.data.aggregations.tags);
-
     assert.equal(result.data.items.length, 2);
+
+    done();
+  })
+
+  it('searches with query', function test(done) {
+
+    var facets = new Facets();
+    facets.index({
+      json_object: items,
+      configuration: configuration
+    });
+
+    var input = {
+      filters: {
+        tags: ['a'],
+        category: ['drama']
+      },
+      query: 'movie4'
+    }
+
+    var result = lib.search(input, configuration, facets);
+
+    assert.equal(result.data.items.length, 1);
 
     done();
   })

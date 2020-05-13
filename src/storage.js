@@ -58,6 +58,21 @@ module.exports.getKeysList = function() {
   return array;
 }
 
+module.exports.getSearchTermIndex = function(key) {
+
+  var txn = env.beginTxn();
+  var binary = txn.getBinary(dbi, new Buffer.from('term|||' + key));
+  txn.abort();
+
+  if (!binary) {
+    return;
+  }
+
+  var bitmap = RoaringBitmap32.deserialize(binary, true);
+
+  return bitmap;
+}
+
 
 
 module.exports.getFilterIndex = function(key) {
