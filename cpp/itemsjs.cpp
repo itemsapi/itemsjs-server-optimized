@@ -53,8 +53,6 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   int starting_id = 1;
 
 
-
-
   typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
 
   //if (!fs::is_directory("example.mdb") || !fs::exists("example.mdb")) {
@@ -214,6 +212,17 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
       std::string sv2(key2);
       string name = sv + "." + sv2;
 
+      if (append) {
+
+        std::string_view filter_indexes;
+        if (dbi.get(wtxn, name, filter_indexes)) {
+          //roar_object = roar_object | Roaring::read(filter_indexes.data());
+          roar_object |= Roaring::read(filter_indexes.data());
+          roar_object.runOptimize();
+        }
+      }
+
+
       int expectedsize = roar_object.getSizeInBytes();
 
       // ensure to free memory somewhere
@@ -326,9 +335,17 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
       continue;
     }
 
-    //cout << key << endl;
-
     string name = "term|||" + sv;
+
+    if (append) {
+
+      std::string_view filter_indexes;
+      if (dbi.get(wtxn, name, filter_indexes)) {
+        roar_object |= Roaring::read(filter_indexes.data());
+        roar_object.runOptimize();
+      }
+    }
+
 
     //cout << key << endl;
     //cout << roar_object.cardinality() << endl;

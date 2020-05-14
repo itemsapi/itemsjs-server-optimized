@@ -128,6 +128,12 @@ describe('indexing', function() {
     var ids = storage.getIdsBitmap();
     assert.deepEqual(ids.size, 40);
 
+    var filter_index = storage.getFilterIndex('genres.Drama');
+    assert.deepEqual(30, filter_index.size);
+
+    var index = storage.getSearchTermIndex('shawshank');
+    assert.deepEqual(2, index.size);
+
     done();
   })
 
