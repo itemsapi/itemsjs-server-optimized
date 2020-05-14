@@ -1,10 +1,7 @@
 'use strict';
 
-const should = require('should');
-const expect = require('expect');
 const assert = require('assert');
 const service = require('./../src/lib');
-const sinon = require('sinon');
 const Facets = require('./../src/facets');
 const helpers2 = require('./../src/helpers2');
 const storage = require('./../src/storage');
@@ -63,6 +60,7 @@ describe('conjunctive search', function() {
     facets = new Facets();
     facets.index({
       json_object: items,
+      append: false,
       configuration: configuration
     });
   });
@@ -258,6 +256,7 @@ describe('disjunctive search', function() {
     facets = new Facets();
     facets.index({
       json_object: items,
+      append: false,
       configuration: configuration
     });
   });
@@ -377,6 +376,7 @@ describe('disjunctive and conjunctive search', function() {
     facets = new Facets();
     facets.index({
       json_object: items,
+      append: false,
       configuration: configuration
     });
   });
@@ -499,6 +499,7 @@ describe('generates facets crossed with query', function() {
     facets = new Facets();
     facets.index({
       json_object: items,
+      append: false,
       configuration: configuration
     });
   });

@@ -143,7 +143,8 @@ describe('search', function() {
 
     itemsjs.index({
       json_object: items,
-      configuration: configuration
+      configuration: configuration,
+      append: false
     });
 
     var result = itemsjs.search({

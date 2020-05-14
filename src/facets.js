@@ -2,6 +2,7 @@ const _ = require('lodash');
 const helpers2 = require('./helpers2');
 const storage = require('./storage');
 const algo = require('./algo');
+const fs = require('fs-extra');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 const addon = require('bindings')('itemsjs_addon.node');
 
@@ -16,6 +17,13 @@ Facets.prototype = {
 
   items: function() {
     return this.items;
+  },
+
+  /**
+   * had a problem with c++ filesystem so nodejs is responsible for it so far
+   */
+  delete_index: function() {
+    return fs.emptyDirSync('./example.mdb');
   },
 
   index: function(data) {
@@ -60,6 +68,9 @@ Facets.prototype = {
     return _.chain(query).split(' ')
     .filter(v => {
       return v.trim();
+    })
+    .map(v => {
+      return v.toLowerCase();
     })
     .value();
   },
@@ -115,6 +126,12 @@ Facets.prototype = {
 
     var time = new Date().getTime();
     var indexes = storage.getFilterIndexes();
+
+    if (!indexes) {
+      throw new Error('Not found any indexes');
+    }
+
+
     console.log(`load indexes: ${new Date().getTime() - time}`);
 
     _.mapValues(indexes, function(bitmap, key) {
@@ -198,21 +215,17 @@ Facets.prototype = {
             if (config[key].conjunction === false && field === key) {
               result = facet_indexes;
               cond = 1;
-              //result = RoaringBitmap32.and(filter_indexes, facet_indexes);
             } else if (config[field].conjunction === false && field !== key) {
-              //result = RoaringBitmap32.and(facet_indexes, union[field]);
               result = RoaringBitmap32.and(facet_indexes, union[field]);
-              //result = RoaringBitmap32.or(facet_indexes, filter_indexes);
               cond = 2;
-            //} else if (config[key].conjunction === false && field !== key && combination[field]) {
             } else if (config[key].conjunction === false && field !== key) {
-
               // it's new and it's gonna work
               result = RoaringBitmap32.and(facet_indexes, combination[field]);
-              //result = RoaringBitmap32.and(facet_indexes, filter_indexes);
+              //result = facet_indexes.andInPlace(combination[field]);
               cond = 3;
             } else {
               result = RoaringBitmap32.and(filter_indexes, facet_indexes);
+              //result = facet_indexes.andInPlace(filter_indexes);
               cond = 4;
             }
 

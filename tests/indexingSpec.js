@@ -4,6 +4,10 @@ const assert = require('assert');
 const storage = require('./../src/storage');
 const helpers2 = require('./../src/helpers2');
 const addon = require('bindings')('itemsjs_addon.node');
+const Facets = require('./../src/facets');
+
+//const SegfaultHandler = require('segfault-handler');
+//SegfaultHandler.registerHandler('crash.log');
 
 var data = [{
   id: 1,
@@ -31,14 +35,24 @@ var data = [{
   category: 'drama'
 }]
 
+var facets = new Facets();
+
 describe('indexing', function() {
+
+  beforeEach(function(done) {
+    console.log('before each')
+    setTimeout(function() {
+      //facets.delete_index();
+      done();
+    }, 1)
+  });
 
   it('checks index', function test(done) {
 
-    //var index = addon.index('/home/mateusz/node/items-benchmark/datasets/shoprank_full.json');
     var index = addon.index({
       json_path: './tests/fixtures/movies.json',
-      faceted_fields: ['actors', 'genres', 'year', 'director']
+      faceted_fields: ['actors', 'genres', 'year', 'director'],
+      append: false
       //fields: ['actors', 'genres', 'year']
     });
 
@@ -60,11 +74,11 @@ describe('indexing', function() {
 
 
     var filter_indexes = storage.getFilterIndexes();
+    //console.log(filter_indexes);
     assert.deepEqual(1, filter_indexes['director.Sergio Leone'].size);
 
 
     var keys_list = storage.getKeysList('keys_list');
-    //console.log(JSON.stringify(keys_list));
     assert.deepEqual('actors.Aamir Khan', keys_list[0]);
 
     var item = storage.getItem(1);
@@ -101,11 +115,37 @@ describe('indexing', function() {
     done();
   })
 
+
+
+  it('appends data', function test(done) {
+
+    var index = addon.index({
+      json_path: './tests/fixtures/movies.json',
+      faceted_fields: ['actors', 'genres', 'year', 'director'],
+      append: true
+    });
+
+    var ids = storage.getIdsBitmap();
+    assert.deepEqual(ids.size, 40);
+
+    done();
+  })
+
+
+
+
+
+
+
+
+
+
   it('checks index creating from non json object', function test(done) {
 
     var index = addon.index({
       json_object: data,
-      faceted_fields: ['category', 'actors', 'tags']
+      faceted_fields: ['category', 'actors', 'tags'],
+      append: false
     });
 
     var item = storage.getItem(1);
@@ -134,7 +174,8 @@ describe('indexing', function() {
 
     var index = addon.index({
       json_string: JSON.stringify(data),
-      faceted_fields: ['category', 'actors', 'tags']
+      faceted_fields: ['category', 'actors', 'tags'],
+      append: false
     });
 
     var item = storage.getItem(1);

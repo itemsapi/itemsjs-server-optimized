@@ -10,7 +10,8 @@
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string.hpp>
 
-
+//#include <experimental/filesystem>
+//namespace fs = std::experimental::filesystem;
 
 using namespace simdjson;
 using namespace std;
@@ -39,7 +40,7 @@ std::string itemsjs::json_at(string json_path, int i) {
 
 std::vector<int> lista;
 
-std::string itemsjs::index(string json_path, string json_string, vector<string> &faceted_fields) {
+std::string itemsjs::index(string json_path, string json_string, vector<string> &faceted_fields, bool append = true) {
 
   map<string_view, map<string_view, vector<int>>> facets3;
   map<string_view, map<string_view, Roaring>> roar;
@@ -49,13 +50,51 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   map<string, Roaring> search_roar;
   vector<string> keys_list;
   Roaring ids;
+  int starting_id = 1;
+
+
+
 
   typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
+
+  //if (!fs::is_directory("example.mdb") || !fs::exists("example.mdb")) {
+    //fs::create_directory("example.mdb");
+  //}
+
+  //fs::create_directory("aha");
+  //fs::create_directory("./aha");
+  //fs::create_directory("./example.mdb");
 
   auto env = lmdb::env::create();
   env.set_mapsize(10UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
   env.set_max_dbs(3);
   env.open("./example.mdb", 0, 0664);
+
+  if (append) {
+    // local scope
+    // probably not needed in if though
+    {
+      auto rtxn2 = lmdb::txn::begin(env, nullptr, MDB_RDONLY);
+      auto dbi2 = lmdb::dbi::open(rtxn2, nullptr);
+
+      std::string_view last_ids;
+
+      if (dbi2.get(rtxn2, "ids", last_ids)) {
+
+        ids = Roaring::read(last_ids.data());
+        //cout << "size of new roar..." << t4.getSizeInBytes() << endl;
+        //cout << "minimum..." << t4.minimum() << endl;
+        //cout << "minimum..." << t4.maximum() << endl;
+
+        starting_id = ids.maximum() + 1;
+      }
+    }
+  }
+
+  cout << "starting id: " << starting_id << endl;
+
+
+
 
   //string filename = "/home/mateusz/node/items-benchmark/datasets/shoprank_full.json";
 
@@ -80,18 +119,18 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
   start = std::chrono::high_resolution_clock::now();
 
-  int i = 1;
+  int id = starting_id;
   for (dom::element item : items) {
 
     string ok = "";
 
     string sv = simdjson::minify(item);
-    string name = to_string(i) + "";
+    string name = to_string(id) + "";
     //dbi.del(wtxn, name);
     dbi.put(wtxn, name.c_str(), sv.c_str());
 
-    ids.add(i);
-    ++i;
+    ids.add(id);
+    ++id;
   }
 
   /**
@@ -115,7 +154,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   //std::cout << "start indexing facets: " << std::endl;
   start = std::chrono::high_resolution_clock::now();
 
-  i = 1;
+  id = starting_id;
   for (dom::object item : items) {
 
     for (auto [key, value] : item) {
@@ -129,8 +168,8 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
           for (auto filter : value) {
 
-            facets3[key][filter].push_back(i);
-            roar[key][filter].add(i);
+            facets3[key][filter].push_back(id);
+            roar[key][filter].add(id);
           }
         }
 
@@ -141,21 +180,21 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
           strcpy(char_array, year.c_str());
           string_view filter (char_array, year.length());
 
-          facets3[key][filter].push_back(i);
-          roar[key][filter].add(i);
+          facets3[key][filter].push_back(id);
+          roar[key][filter].add(id);
         }
 
         else if (key == field and value.type() == dom::element_type::STRING) {
 
           string_view filter (value);
-          facets3[key][filter].push_back(i);
-          roar[key][filter].add(i);
+          facets3[key][filter].push_back(id);
+          roar[key][filter].add(id);
         }
       }
 
     }
 
-    ++i;
+    ++id;
   }
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
@@ -216,7 +255,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   /**
    * full text indexing
    */
-  i = 1;
+  id = starting_id;
   for (dom::object item : items) {
 
     for (auto [key, value] : item) {
@@ -236,7 +275,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
               string_view token1 (t);
               string token2(token1);
               boost::algorithm::to_lower(token2);
-              search_roar[token2].add(i);
+              search_roar[token2].add(id);
             }
           }
 
@@ -260,12 +299,12 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
           //string_view token3 (token2);
           //cout << token4 << endl;
-          search_roar[token2].add(i);
+          search_roar[token2].add(id);
         }
       }
     }
 
-    ++i;
+    ++id;
   }
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
@@ -393,6 +432,20 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
   //cout << faceted_fields.Get("0").ToString() << endl;
   //cout << faceted_fields.Get("1").As<Napi::String>() << endl;
 
+  bool append = true;
+  Napi::Value append_value = first.Get("append");
+
+  //Napi::Boolean append_value2 = append_value.As<Napi::Boolean>();
+  //cout << "append " << append_value2 << endl;
+
+  if (append_value.IsBoolean() and (bool) append_value.As<Napi::Boolean>() == false) {
+    //Napi::Boolean append_value2 = append_value.As<Napi::Boolean>();
+    append = false;
+  }
+
+  cout << "append " << append << endl;
+
+
   if (first.Has("json_object")) {
 
     Napi::Value json_object = first.Get("json_object");
@@ -401,21 +454,21 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
     Napi::Function stringify = json.Get("stringify").As<Napi::Function>();
     string json_string =  stringify.Call(json, { json_object }).As<Napi::String>();
 
-    returnValue = Napi::String::New(env, itemsjs::index("", json_string, faceted_fields_array));
+    returnValue = Napi::String::New(env, itemsjs::index("", json_string, faceted_fields_array, append));
 
   } else if (first.Has("json_path")) {
 
     Napi::Value json_path = first.Get("json_path");
     string json_path_string(json_path.ToString());
 
-    returnValue = Napi::String::New(env, itemsjs::index(json_path_string, "", faceted_fields_array));
+    returnValue = Napi::String::New(env, itemsjs::index(json_path_string, "", faceted_fields_array, append));
 
   } else if (first.Has("json_string")) {
 
     Napi::Value json_string = first.Get("json_string");
     string json_string_string(json_string.ToString());
 
-    returnValue = Napi::String::New(env, itemsjs::index("", json_string_string, faceted_fields_array));
+    returnValue = Napi::String::New(env, itemsjs::index("", json_string_string, faceted_fields_array, append));
   }
 
 

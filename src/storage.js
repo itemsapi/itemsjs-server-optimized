@@ -99,6 +99,12 @@ module.exports.getFilterIndexes = function() {
 
   var output = {};
   var binary = txn.getBinary(dbi, new Buffer.from('keys_list'));
+
+  if (!binary) {
+    txn.abort();
+    return;
+  }
+
   var string = binary.toString();
   var keys = string.split('|||');
 

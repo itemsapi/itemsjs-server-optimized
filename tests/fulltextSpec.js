@@ -54,6 +54,7 @@ describe('full text', function() {
     facets = new Facets();
     facets.index({
       json_object: data,
+      append: false,
       configuration: configuration
     });
   });

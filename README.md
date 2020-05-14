@@ -19,6 +19,10 @@ npm install itemsjs-server-optimized
 
 Some function might not working yet
 
+## Requirements
+
+- Nodejs >= 12.x
+
 ## Licence
 
 You can use ItemsJS for free, if your project is Open Source. If you want to use ItemsJS in to build commercial software, you need to buy a commercial license.
