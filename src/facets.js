@@ -2,7 +2,7 @@ const _ = require('lodash');
 const helpers2 = require('./helpers2');
 const storage = require('./storage');
 const algo = require('./algo');
-const fs = require('fs-extra');
+//const fs = require('fs-extra');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 const addon = require('bindings')('itemsjs_addon.node');
 
@@ -23,7 +23,7 @@ Facets.prototype = {
    * had a problem with c++ filesystem so nodejs is responsible for it so far
    */
   delete_index: function() {
-    return fs.emptyDirSync('./example.mdb');
+    //return fs.emptyDirSync('./example.mdb');
   },
 
   index: function(data) {
