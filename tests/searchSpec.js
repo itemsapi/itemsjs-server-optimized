@@ -76,6 +76,7 @@ describe('search', function() {
     var facets = new Facets();
     facets.index({
       json_object: items,
+      append: false,
       configuration: configuration
     });
 
@@ -98,6 +99,7 @@ describe('search', function() {
     var facets = new Facets();
     facets.index({
       json_object: items,
+      append: false,
       configuration: configuration
     });
 
@@ -122,6 +124,7 @@ describe('search', function() {
 
     itemsjs.index({
       json_object: items,
+      append: false,
       configuration: configuration
     });
 

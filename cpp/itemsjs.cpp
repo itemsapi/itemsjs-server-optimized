@@ -64,7 +64,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   //fs::create_directory("./example.mdb");
 
   auto env = lmdb::env::create();
-  env.set_mapsize(10UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
+  env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
   env.set_max_dbs(3);
   env.open("./example.mdb", 0, 0664);
 

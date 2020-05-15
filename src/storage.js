@@ -5,7 +5,7 @@ const env = new lmdb.Env();
 env.open({
   //path: './db.mdb',
   path: './example.mdb',
-  mapSize: 10 * 1024 * 1024 * 1024,
+  mapSize: 100 * 1024 * 1024 * 1024,
   maxReaders: 3,
   maxDbs: 3
 });
