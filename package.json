@@ -1,11 +1,11 @@
 {
   "name": "itemsjs-server-optimized",
-  "version": "0.4.24",
+  "version": "0.4.26",
   "description": "ItemsJS on steroid",
   "main": "lib/index.js",
   "scripts": {
     "install": "node-gyp rebuild",
-    "test": "mocha tests/*",
+    "test": "mocha -b --exit tests/*",
     "build": "node-gyp rebuild",
     "compile": "node-gyp build -j 12",
     "clean": "node-gyp clean"

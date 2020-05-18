@@ -57,6 +57,7 @@ describe('conjunctive search', function() {
   }
 
   before(function() {
+    storage.dropDB();
     facets = new Facets();
     facets.index({
       json_object: items,
@@ -253,6 +254,7 @@ describe('disjunctive search', function() {
 
 
   before(function() {
+    storage.dropDB();
     facets = new Facets();
     facets.index({
       json_object: items,
@@ -373,6 +375,7 @@ describe('disjunctive and conjunctive search', function() {
   }
 
   before(function() {
+    storage.dropDB();
     facets = new Facets();
     facets.index({
       json_object: items,
@@ -496,6 +499,7 @@ describe('generates facets crossed with query', function() {
 
 
   before(function() {
+    storage.dropDB();
     facets = new Facets();
     facets.index({
       json_object: items,

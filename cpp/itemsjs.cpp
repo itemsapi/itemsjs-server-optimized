@@ -9,6 +9,7 @@
 #include "lmdb2++.h"
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string.hpp>
+//https://github.com/gabime/spdlog
 
 //#include <experimental/filesystem>
 //namespace fs = std::experimental::filesystem;
@@ -54,6 +55,8 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
 
   typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
+
+  //system( "rm -rf ./example.mdb/*" );
 
   //if (!fs::is_directory("example.mdb") || !fs::exists("example.mdb")) {
     //fs::create_directory("example.mdb");
@@ -201,6 +204,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
   wtxn = lmdb::txn::begin(env);
   dbi = lmdb::dbi::open(wtxn, nullptr);
+  auto dbi2 = lmdb::dbi::open(wtxn, "filters", MDB_CREATE);
 
   start = std::chrono::high_resolution_clock::now();
   for (auto&& [key, value] : roar) {
@@ -230,7 +234,9 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
       roar_object.write(serializedbytes);
       std::string_view nowy(serializedbytes, expectedsize);
       dbi.put(wtxn, name, nowy);
+      dbi2.put(wtxn, name, nowy);
 
+      // we should remove it and use cursors
       keys_list.push_back(name);
 
       //dbi.put(wtxn, name.c_str(), serializedbytes);

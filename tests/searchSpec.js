@@ -55,6 +55,11 @@ describe('search', function() {
     done();
   });
 
+  beforeEach(function(done) {
+    storage.dropDB();
+    done();
+  });
+
   it('index is empty so cannot search', function test(done) {
 
     var itemsjs = require('./../src/index')();

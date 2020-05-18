@@ -39,12 +39,9 @@ var facets = new Facets();
 
 describe('indexing', function() {
 
-  beforeEach(function(done) {
-    console.log('before each')
-    setTimeout(function() {
-      //facets.delete_index();
-      done();
-    }, 1)
+  before(function(done) {
+    storage.dropDB();
+    done();
   });
 
   it('checks index', function test(done) {
@@ -80,6 +77,7 @@ describe('indexing', function() {
 
     var keys_list = storage.getKeysList('keys_list');
     assert.deepEqual('actors.Aamir Khan', keys_list[0]);
+    assert.deepEqual(309, keys_list.length);
 
     var item = storage.getItem(1);
     assert.deepEqual(item.name, 'The Shawshank Redemption');
@@ -134,20 +132,43 @@ describe('indexing', function() {
     var index = storage.getSearchTermIndex('shawshank');
     assert.deepEqual(2, index.size);
 
+    var keys_list = storage.getKeysList('keys_list');
+    assert.deepEqual(309, keys_list.length);
+
+    done();
+  })
+
+  it('appends different data', function test(done) {
+
+    var index = addon.index({
+      json_object: [{
+        name: 'Movie',
+        genres: ['Drama']
+      }],
+      faceted_fields: ['actors', 'genres', 'year', 'director'],
+      append: true
+    });
+
+    var ids = storage.getIdsBitmap();
+    assert.deepEqual(ids.size, 41);
+
+    var filter_index = storage.getFilterIndex('genres.Drama');
+    assert.deepEqual(31, filter_index.size);
+
+    var index = storage.getSearchTermIndex('shawshank');
+    assert.deepEqual(2, index.size);
+
+    var keys_list = storage.getKeysList('keys_list');
+    //assert.deepEqual(310, keys_list.length);
+
     done();
   })
 
 
 
-
-
-
-
-
-
-
   it('checks index creating from non json object', function test(done) {
 
+    storage.dropDB();
     var index = addon.index({
       json_object: data,
       faceted_fields: ['category', 'actors', 'tags'],
@@ -178,6 +199,7 @@ describe('indexing', function() {
 
   it('checks index creating from stringified json', function test(done) {
 
+    storage.dropDB();
     var index = addon.index({
       json_string: JSON.stringify(data),
       faceted_fields: ['category', 'actors', 'tags'],

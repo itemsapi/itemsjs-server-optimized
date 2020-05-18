@@ -51,6 +51,7 @@ var configuration = {
 describe('search', function() {
 
   before(function(done) {
+    storage.dropDB();
     storage.deleteConfiguration();
     done();
   });

@@ -6,6 +6,7 @@ const algo = require('./algo');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 const addon = require('bindings')('itemsjs_addon.node');
 
+
 /**
  * responsible for making faceted search
  */
@@ -84,11 +85,25 @@ Facets.prototype = {
 
     var tokens = this.query_parser(query);
 
+    // union
     var bitmap = new RoaringBitmap32([]);
     tokens.forEach(token => {
       var index = storage.getSearchTermIndex(token);
       if (index) {
         bitmap = RoaringBitmap32.or(index, bitmap);
+      }
+    })
+
+    // and
+    var bitmap = null;
+    tokens.forEach(token => {
+      var index = storage.getSearchTermIndex(token);
+      if (index) {
+        if (!bitmap) {
+          bitmap = index;
+        } else {
+          bitmap = RoaringBitmap32.and(index, bitmap);
+        }
       }
     })
 
@@ -119,18 +134,12 @@ Facets.prototype = {
       data: {}
     };
 
-    /*var time = new Date().getTime();
-    var indexes = storage.getFilterIndexes();
-    time = new Date().getTime() - time;
-    console.log('load indexes from db: ' + time);*/
-
     var time = new Date().getTime();
     var indexes = storage.getFilterIndexes();
 
     if (!indexes) {
       throw new Error('Not found any indexes');
     }
-
 
     console.log(`load indexes: ${new Date().getTime() - time}`);
 

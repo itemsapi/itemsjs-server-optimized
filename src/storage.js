@@ -6,14 +6,23 @@ env.open({
   //path: './db.mdb',
   path: './example.mdb',
   mapSize: 100 * 1024 * 1024 * 1024,
-  maxReaders: 3,
-  maxDbs: 3
+  maxReaders: 10,
+  //noTls: true,
+  maxDbs: 10
 });
 
-const dbi = env.openDbi({
+var dbi = env.openDbi({
   name: null,
   create: false
 })
+
+module.exports.dropDB = function() {
+  dbi.drop();
+  dbi = env.openDbi({
+    name: null,
+    create: false
+  });
+}
 
 module.exports.deleteConfiguration = function(configuration) {
 
@@ -34,7 +43,9 @@ module.exports.setConfiguration = function(configuration) {
 
 module.exports.getConfiguration = function() {
 
-  var txn = env.beginTxn();
+  var txn = env.beginTxn({
+    readonly: true
+  });
   var binary = txn.getBinary(dbi, new Buffer.from('configuration'));
   txn.abort();
 
@@ -49,18 +60,55 @@ module.exports.getConfiguration = function() {
 
 module.exports.getKeysList = function() {
 
-  var txn = env.beginTxn();
+  var array = [];
+
+  var dbi2 = env.openDbi({
+    name: 'filters',
+    create: true
+  })
+
+  var txn = env.beginTxn({
+    readonly: true
+  });
+
+  var time = new Date().getTime();
+  var cursor = new lmdb.Cursor(txn, dbi2, { keyIsBuffer: true });
+
+  for (var found = cursor.goToFirst(); found !== null; found = cursor.goToNext()) {
+    if (found) {
+      array.push(found.toString());
+    }
+  }
+
+  console.log(`load keys by cursor: ${new Date().getTime() - time}`);
+  cursor.close();
+  txn.abort();
+  dbi2.close();
+
+  return array;
+
+
+  var txn = env.beginTxn({
+    readonly: true
+  });
+  var time = new Date().getTime();
   var binary = txn.getBinary(dbi, new Buffer.from('keys_list'));
   txn.abort();
+
   var string = binary.toString();
   var array = string.split('|||');
+  console.log(`load keys by splitting: ${new Date().getTime() - time}`);
+
+  console.log(array[0]);
 
   return array;
 }
 
 module.exports.getSearchTermIndex = function(key) {
 
-  var txn = env.beginTxn();
+  var txn = env.beginTxn({
+    readonly: true
+  });
   var binary = txn.getBinary(dbi, new Buffer.from('term|||' + key));
   txn.abort();
 
@@ -77,7 +125,9 @@ module.exports.getSearchTermIndex = function(key) {
 
 module.exports.getFilterIndex = function(key) {
 
-  var txn = env.beginTxn();
+  var txn = env.beginTxn({
+    readonly: true
+  });
 
   //var binary = txn.getBinary(dbi, new Buffer.from('actors.Al Pacino'));
   var binary = txn.getBinary(dbi, new Buffer.from(key));
@@ -93,20 +143,27 @@ module.exports.getFilterIndex = function(key) {
   return bitmap;
 }
 
+/**
+ * it should be cached for x seconds
+ * the roaring deserialization is taking the most time while making faceted query
+ */
+var cache;
 module.exports.getFilterIndexes = function() {
 
-  var txn = env.beginTxn();
-
-  var output = {};
-  var binary = txn.getBinary(dbi, new Buffer.from('keys_list'));
-
-  if (!binary) {
-    txn.abort();
-    return;
+  /**
+   * not making cache right now
+   * we'll work once itemsjs become more stable
+   */
+  if (0 && cache) {
+    return cache;
   }
 
-  var string = binary.toString();
-  var keys = string.split('|||');
+  var output = {};
+  var keys = module.exports.getKeysList();
+
+  var txn = env.beginTxn({
+    readonly: true
+  });
 
   keys.forEach(key => {
 
@@ -123,12 +180,15 @@ module.exports.getFilterIndexes = function() {
 
   txn.abort();
 
+  cache = output;
   return output;
 }
 
 module.exports.getItem = function(id) {
 
-  var txn = env.beginTxn();
+  var txn = env.beginTxn({
+    readonly: true
+  });
 
   var binary = txn.getBinary(dbi, new Buffer.from(id + ''));
   txn.abort();
@@ -140,7 +200,9 @@ module.exports.getItem = function(id) {
 
 module.exports.getItems = function(ids) {
 
-  var txn = env.beginTxn();
+  var txn = env.beginTxn({
+    readonly: true
+  });
   var output = [];
 
   ids.forEach(id => {
@@ -170,7 +232,9 @@ module.exports.getIds = function() {
  */
 module.exports.getIdsBitmap = function() {
 
-  var txn = env.beginTxn();
+  var txn = env.beginTxn({
+    readonly: true
+  });
 
   var binary = txn.getBinary(dbi, new Buffer.from('ids'));
   txn.abort();
