@@ -113,8 +113,8 @@ std::string itemsjs::search_facets(nlohmann::json input) {
           //cout << key2 << " " << roar.cardinality() << endl;
           //result = RoaringBitmap32.and(filter_indexes, facet_indexes);
 
-          //facets[key][key2] = filter_indexes & roar;
-          //facets[key][key2] &= filter_indexes;
+          facets[key][key2] = facets[field][filter] & roar;
+          //facets[key][key2] &= facets[field][filter];
         }
       }
     }
