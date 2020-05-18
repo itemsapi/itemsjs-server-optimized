@@ -44,10 +44,19 @@ std::string itemsjs::json_at(string json_path, int i) {
 /**
  * creating string instead of string_view is very slow here
  * calculating roaring seems to be 30% right now
+ * there is no big difference in string vs string_view though
+ * the most time is taking lookup data and deserialization from lmdb
+ * it's only about 2,3x faster than node
+ * using pointers for roaring makes it much faster
  */
 std::string itemsjs::search_facets(nlohmann::json input) {
 
-  map<string, map<string, Roaring>> facets;
+  //map<string, map<string, Roaring>> facets;
+  //map<string_view, map<string_view, Roaring>> facets;
+  std::map<string_view, std::map<string_view, Roaring>> facets;
+
+
+
 
   //string::find returns string::npos and use string_view
 
@@ -72,28 +81,26 @@ std::string itemsjs::search_facets(nlohmann::json input) {
     ids = Roaring::read(value.data());
     //std::cout << "key: " << key << "  value: " << ids.cardinality() << std::endl;
 
-    string key2(key);
+    //string key2(key);
 
-    /**
-     * spliting key by "." for two tokens
-     */
-    string keys[2];
-    std::istringstream ss(key2);
-    int i = 0;
-    string token;
-    while(std::getline(ss, token, '.') && i < 2) {
-      //std::cout << token << '\n';
-      keys[i] = token;
-      ++i;
-    }
+    std::string_view key1 = key;
+    std::string_view key2 = key;
 
-    facets[keys[0]][keys[1]] = ids;
+    key1.remove_suffix(key1.size() - key1.find_first_of("."));
+    //cout << "key1: " << key1 << endl;
+
+    key2.remove_prefix(std::min(key2.find_first_of("."), key2.size()) + 1);
+    //cout << "key2: " << key2 << endl;
+
+    //temp[key2] = ids;
+    //temp.emplace(key2, &ids);
+
+    // it's taking half time
+    facets[key1][key2] = ids;
+    //facets.insert({key1, key2, ids});
+    //facets.emplace(key1, "ddd");
   }
 
-  // probably not needed because it's auto destroyed after going out of scope
-  cursor.close();
-  rtxn.abort();
-  env.close();
 
   //nlohmann::json j;
   //j["pi"] = 3.141;
@@ -101,6 +108,11 @@ std::string itemsjs::search_facets(nlohmann::json input) {
   // we could start filters calculation now
   // we need filters input from user yet
 
+  for (auto&& [key, values] : facets) {
+    for (auto&& [key2, roar] : values) {
+      //cout << key << " " << key2 << " " << roar.cardinality() << endl;
+    }
+  }
 
   for (auto& [field, filters] : input["filters"].items()) {
     for (auto& [filter_key, filter] : filters.items()) {
@@ -110,16 +122,21 @@ std::string itemsjs::search_facets(nlohmann::json input) {
       for (auto&& [key, values] : facets) {
         for (auto&& [key2, roar] : values) {
 
-          //cout << key2 << " " << roar.cardinality() << endl;
+          //cout << key2 << " " << roar->cardinality() << endl;
+          //cout << key << " " << key2 << " " << endl;
           //result = RoaringBitmap32.and(filter_indexes, facet_indexes);
 
           //facets[key][key2] = filter_indexes & roar;
-          //facets[key][key2] &= filter_indexes;
+          facets[key][key2] &= filter_indexes;
         }
       }
     }
   }
 
+  // probably not needed because it's auto destroyed after going out of scope
+  cursor.close();
+  rtxn.abort();
+  env.close();
 
   return "search_facets";
 }
