@@ -47,8 +47,7 @@ std::string itemsjs::json_at(string json_path, int i) {
  */
 std::string itemsjs::search_facets(nlohmann::json input) {
 
-  //map<string, map<string, Roaring>> facets;
-  map<string_view, map<string_view, Roaring>> facets;
+  map<string, map<string, Roaring>> facets;
 
   //string::find returns string::npos and use string_view
 
