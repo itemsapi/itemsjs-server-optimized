@@ -289,10 +289,6 @@ const getBuckets = function(data, input, aggregations) {
   //return _.mapValues(data['data'], (v, k) => {
   return _.mapValues(data['bits_data_temp'], (v, k) => {
 
-    //console.log(v)
-    //console.log(k)
-
-
     var order;
     var sort;
     var size;

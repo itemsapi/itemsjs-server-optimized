@@ -81,6 +81,9 @@ module.exports.search = function(input, configuration, facets) {
     filtered_indexes_bitmap = RoaringBitmap32.and(_ids_bitmap, facets_ids_bits);
   }
 
+
+  // the ids should be sorted here if necessary
+
   var new_items_indexes = filtered_indexes_bitmap.rangeUint32Array((page - 1) * per_page, per_page);
 
   var new_items = storage.getItems(new_items_indexes);
@@ -147,59 +150,43 @@ module.exports.sorted_items = function(items, sort, sortings) {
   return items;
 }
 
+
 /**
- * returns list of elements in aggregation
+ * returns list of elements in specific facet
  * useful for autocomplete or list all aggregation options
  */
-module.exports.similar = function(items, id, options) {
+module.exports.aggregation = function (input, configuration, facets) {
+  var per_page = input.per_page || 10;
+  var page = input.page || 1;
 
-  var result = [];
-  var per_page = options.per_page || 10;
-  var minimum = options.minimum || 0;
-  var page = options.page || 1;
+  console.log(configuration);
 
-  var item;
-
-  for (var i = 0 ; i < items.length ; ++i) {
-    if (items[i].id == id) {
-      item = items[i];
-      break;
-    }
+  if (input.name && (!configuration.aggregations || !configuration.aggregations[input.name])) {
+    throw new Error("Please define aggregation \"".concat(input.name, "\" in config"));
   }
 
-  if (!options.field) {
-    throw new Error(`Please define field in options`);
+  var search_input = _.cloneDeep(input);
+
+  search_input.page = 1;
+  search_input.per_page = 0;
+
+  if (!input.name) {
+    throw new Error('field name is required');
   }
 
-  var field = options.field;
-  var sorted_items = [];
+  configuration.aggregations[input.name].size = 10000;
 
-  for (var i = 0 ; i < items.length ; ++i) {
-
-    if (items[i].id !== id) {
-      var intersection = _.intersection(item[field], items[i][field])
-
-      if (intersection.length >= minimum) {
-        sorted_items.push(items[i]);
-        sorted_items[sorted_items.length - 1].intersection_length = intersection.length;
-      }
-    }
-  }
-
-  sorted_items = _.orderBy(
-    sorted_items,
-    ['intersection_length'],
-    ['desc']
-  );
+  var result = module.exports.search(search_input, configuration, facets);
+  var buckets = result.data.aggregations[input.name].buckets;
 
   return {
     pagination: {
       per_page: per_page,
       page: page,
-      total: sorted_items.length
+      total: buckets.length
     },
     data: {
-      items: sorted_items.slice((page - 1) * per_page, page * per_page),
+      buckets: buckets.slice((page - 1) * per_page, page * per_page)
     }
-  }
-}
+  };
+};

@@ -113,6 +113,9 @@ Facets.prototype = {
   /*
    *
    * ids is optional only when there is query
+   * @TODO:
+   * add disjunction_fields, conjunction_fields for custom behaviour
+   * add facets_list which only makes computation for specific facets (not all like now)
    */
   search: function(input, data) {
 

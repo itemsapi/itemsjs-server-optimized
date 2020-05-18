@@ -5,35 +5,10 @@ const storage = require('./../src/storage');
 const helpers2 = require('./../src/helpers2');
 const addon = require('bindings')('itemsjs_addon.node');
 const Facets = require('./../src/facets');
+const data = require('./fixtures/items.json');
 
 //const SegfaultHandler = require('segfault-handler');
 //SegfaultHandler.registerHandler('crash.log');
-
-var data = [{
-  id: 1,
-  name: 'movie1',
-  tags: ['a', 'b', 'c', 'd'],
-  actors: ['john', 'alex'],
-  category: 'drama'
-}, {
-  id: 2,
-  name: 'movie2',
-  tags: ['a', 'e', 'f'],
-  actors: ['john', 'brad'],
-  category: 'comedy'
-}, {
-  id: 3,
-  name: 'movie3',
-  tags: ['a', 'c'],
-  actors: ['jeff'],
-  category: 'comedy'
-}, {
-  id: 4,
-  name: 'movie4',
-  tags: ['c', 'a', 'z'],
-  actors: ['jean'],
-  category: 'drama'
-}]
 
 var facets = new Facets();
 

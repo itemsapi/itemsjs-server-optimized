@@ -60,7 +60,14 @@ module.exports = function itemsjs() {
     /**
      * @TODO
      */
-    aggregation: function(input) {
+    aggregation: function aggregation(input) {
+
+      configuration = storage.getConfiguration();
+
+      if (!configuration) {
+        throw new Error('index first then search');
+      }
+      return lib.aggregation(input, configuration, facets);
     },
 
     /**
