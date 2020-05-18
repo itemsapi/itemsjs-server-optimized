@@ -104,6 +104,12 @@ Facets.prototype = {
 
   load_indexes: function() {
 
+
+    var time = new Date().getTime();
+    addon.search_facets(input);
+    console.log(`search facets from addon: ${new Date().getTime() - time}`);
+
+
     /**
      * get facets from file memory db
      */

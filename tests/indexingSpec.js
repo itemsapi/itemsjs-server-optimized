@@ -184,6 +184,12 @@ describe('indexing', function() {
     var item = storage.getItem(1);
     assert.deepEqual(item.name, 'movie1');
 
+    addon.search_facets({
+      filters: {
+        actors: ['a', 'b']
+      }
+    });
+
     done();
   })
 })
