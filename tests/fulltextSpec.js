@@ -80,7 +80,7 @@ describe('full text', function() {
     done();
   })
 
-  it('makes two words (union) search', function test(done) {
+  xit('makes two words (union) search', function test(done) {
 
     var input = {
       query: 'drama john'
