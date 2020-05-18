@@ -10,7 +10,21 @@
 #include "lmdb2++.h"
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/unordered_map.hpp>
 #include "json.hpp"
+#include "tsl/sparse_map.h"
+#include "tsl/sparse_set.h"
+#include "tsl/hopscotch_map.h"
+#include "tsl/hopscotch_set.h"
+#include "tsl/array_map.h"
+#include "tsl/array_set.h"
+#include "tsl/robin_map.h"
+#include "tsl/robin_set.h"
+//#include <boost/ptr_container/ptr_map.hpp>
+//
+// check also map of pointers
+//https://www.boost.org/doc/libs/1_49_0/libs/ptr_container/doc/ptr_container.html
+
 //https://github.com/gabime/spdlog
 
 //#include <experimental/filesystem>
@@ -47,7 +61,15 @@ std::string itemsjs::json_at(string json_path, int i) {
  */
 std::string itemsjs::search_facets(nlohmann::json input) {
 
-  map<string, map<string, Roaring>> facets;
+
+  unordered_map<string, unordered_map<string, Roaring>> facets;
+  boost::unordered::unordered_map<string, boost::unordered::unordered_map<string, Roaring>> facets2;
+  //tsl::sparse_map<string, tsl::sparse_map<string, Roaring>> facets3;
+  //tsl::array_map<string, tsl::array_map<string, Roaring>> facets3;
+  tsl::robin_map<string, tsl::robin_map<string, Roaring>> facets3;
+
+  //tsl::hopscotch_map<string, tsl::hopscotch_map<string, Roaring>> facets3;
+  //
 
   //string::find returns string::npos and use string_view
 
@@ -65,7 +87,7 @@ std::string itemsjs::search_facets(nlohmann::json input) {
 
   Roaring ids;
 
-
+  auto start = std::chrono::high_resolution_clock::now();
 
   while (cursor.get(key, value, MDB_NEXT)) {
 
@@ -87,8 +109,13 @@ std::string itemsjs::search_facets(nlohmann::json input) {
       ++i;
     }
 
-    facets[keys[0]][keys[1]] = ids;
+    //facets[keys[0]][keys[1]] = ids;
+    //facets2[keys[0]][keys[1]] = ids;
+    facets3[keys[0]][keys[1]] = ids;
   }
+
+  auto elapsed = std::chrono::high_resolution_clock::now() - start;
+  std::cout << "creating map time: " << elapsed.count() / 1000000<< std::endl;
 
   // probably not needed because it's auto destroyed after going out of scope
   cursor.close();
@@ -101,25 +128,49 @@ std::string itemsjs::search_facets(nlohmann::json input) {
   // we could start filters calculation now
   // we need filters input from user yet
 
+  start = std::chrono::high_resolution_clock::now();
+
+  long int r = 0;
+  long int m = 0;
+  int op = 0;
 
   for (auto& [field, filters] : input["filters"].items()) {
     for (auto& [filter_key, filter] : filters.items()) {
 
-      Roaring filter_indexes = facets[field][filter];
+      //Roaring filter_indexes = facets3[field][filter];
 
-      for (auto&& [key, values] : facets) {
+
+      for (auto&& [key, values] : facets3) {
         for (auto&& [key2, roar] : values) {
 
-          //cout << key2 << " " << roar.cardinality() << endl;
+          cout << key2 << " " << roar.cardinality() << endl;
           //result = RoaringBitmap32.and(filter_indexes, facet_indexes);
 
-          facets[key][key2] = facets[field][filter] & roar;
-          //facets[key][key2] &= facets[field][filter];
+          cout << "filter: " << filter << "  " << facets3[field][filter].cardinality() << " key: " << key2 << " " << roar.cardinality() << endl;
+          start = std::chrono::high_resolution_clock::now();
+          Roaring temp1 = facets3[field][filter] & roar;
+          elapsed = std::chrono::high_resolution_clock::now() - start;
+          r += elapsed.count();
+          std::cout << "roar single time: " << elapsed.count() / 1000<< std::endl;
+          //facets3[field][filter] = temp1;
+          start = std::chrono::high_resolution_clock::now();
+          facets3[key][key2] = temp1;
+          elapsed = std::chrono::high_resolution_clock::now() - start;
+          m += elapsed.count();
+          std::cout << "map time: " << elapsed.count() / 1000<< std::endl;
+
+          ++op;
         }
       }
     }
   }
 
+  elapsed = std::chrono::high_resolution_clock::now() - start;
+  std::cout << "roaring time: " << elapsed.count() / 1000000<< std::endl;
+
+  cout << "r sum time: " << r / 1000000 << endl;
+  cout << "m sum time: " << m / 1000000 << endl;
+  cout << "op times: " << op << endl;
 
   return "search_facets";
 }
