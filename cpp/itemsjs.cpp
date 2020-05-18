@@ -142,6 +142,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   ids.write(serializedbytes);
   std::string_view nowy(serializedbytes, expectedsize);
   dbi.put(wtxn, "ids", nowy);
+  delete serializedbytes;
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
   std::cout << "items put time: " << elapsed.count() / 1000000<< std::endl;
@@ -183,6 +184,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
           facets3[key][filter].push_back(id);
           roar[key][filter].add(id);
+          //delete char_array;
         }
 
         else if (key == field and value.type() == dom::element_type::STRING) {
@@ -235,6 +237,8 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
       std::string_view nowy(serializedbytes, expectedsize);
       dbi.put(wtxn, name, nowy);
       dbi2.put(wtxn, name, nowy);
+
+      delete serializedbytes;
 
       // we should remove it and use cursors
       keys_list.push_back(name);
@@ -369,6 +373,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
     //term|||✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱ᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇ
 
     dbi.put(wtxn, name, nowy);
+    delete serializedbytes;
   }
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
