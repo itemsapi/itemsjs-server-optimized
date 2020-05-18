@@ -4,11 +4,13 @@
 #include "roaring.c"
 #include <chrono>
 #include <string>
+#include <sstream>
 #include "simdjson.h"
 #include <bits/stdc++.h>
 #include "lmdb2++.h"
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string.hpp>
+#include "json.hpp"
 //https://github.com/gabime/spdlog
 
 //#include <experimental/filesystem>
@@ -37,6 +39,90 @@ std::string itemsjs::json_at(string json_path, int i) {
   //std::cout << first << std::endl;
   string sv = simdjson::minify(first);
   return sv;
+}
+
+/**
+ * creating string instead of string_view is very slow here
+ * calculating roaring seems to be 30% right now
+ */
+std::string itemsjs::search_facets(nlohmann::json input) {
+
+  //map<string, map<string, Roaring>> facets;
+  map<string_view, map<string_view, Roaring>> facets;
+
+  //string::find returns string::npos and use string_view
+
+  auto env = lmdb::env::create();
+  env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL);
+  env.set_max_dbs(3);
+  env.open("./example.mdb", 0, 0664);
+
+  auto rtxn = lmdb::txn::begin(env, nullptr, MDB_RDONLY);
+  auto dbi = lmdb::dbi::open(rtxn, "filters");
+
+  auto cursor = lmdb::cursor::open(rtxn, dbi);
+
+  std::string_view key, value;
+
+  Roaring ids;
+
+
+
+  while (cursor.get(key, value, MDB_NEXT)) {
+
+    ids = Roaring::read(value.data());
+    //std::cout << "key: " << key << "  value: " << ids.cardinality() << std::endl;
+
+    string key2(key);
+
+    /**
+     * spliting key by "." for two tokens
+     */
+    string keys[2];
+    std::istringstream ss(key2);
+    int i = 0;
+    string token;
+    while(std::getline(ss, token, '.') && i < 2) {
+      //std::cout << token << '\n';
+      keys[i] = token;
+      ++i;
+    }
+
+    facets[keys[0]][keys[1]] = ids;
+  }
+
+  // probably not needed because it's auto destroyed after going out of scope
+  cursor.close();
+  rtxn.abort();
+  env.close();
+
+  //nlohmann::json j;
+  //j["pi"] = 3.141;
+
+  // we could start filters calculation now
+  // we need filters input from user yet
+
+
+  for (auto& [field, filters] : input["filters"].items()) {
+    for (auto& [filter_key, filter] : filters.items()) {
+
+      Roaring filter_indexes = facets[field][filter];
+
+      for (auto&& [key, values] : facets) {
+        for (auto&& [key2, roar] : values) {
+
+          //cout << key2 << " " << roar.cardinality() << endl;
+          //result = RoaringBitmap32.and(filter_indexes, facet_indexes);
+
+          //facets[key][key2] = filter_indexes & roar;
+          //facets[key][key2] &= filter_indexes;
+        }
+      }
+    }
+  }
+
+
+  return "search_facets";
 }
 
 std::vector<int> lista;
@@ -392,6 +478,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   lista.push_back(1);
   cout << "lista size: " << lista.size() << endl;
 
+  env.close();
 
   return "index";
 }
@@ -409,6 +496,33 @@ Napi::String itemsjs::JsonWrapped(const Napi::CallbackInfo& info) {
   Napi::String returnValue = Napi::String::New(env, itemsjs::json());
   return returnValue;
 }
+
+Napi::String itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {
+
+  Napi::Env env = info.Env();
+  Napi::String returnValue;
+
+  Napi::Object first = info[0].As<Napi::Object>();
+  Napi::Object json = env.Global().Get("JSON").As<Napi::Object>();
+  Napi::Function stringify = json.Get("stringify").As<Napi::Function>();
+  string json_string = stringify.Call(json, { first }).As<Napi::String>();
+
+  cout << json_string << endl;
+
+  //auto j3 = json::parse("{ \"happy\": true, \"pi\": 3.141 }");
+  nlohmann::json input = nlohmann::json::parse(json_string);
+  //auto j3 = nlohmann::json::parse(first);
+  //auto j3 = nlohmann::json::parse("{ \"happy\": true, \"pi\": 3.141 }");
+
+
+  //returnValue = Napi::String::New(env, itemsjs::index("", json_string, faceted_fields_array, append));
+
+
+  //Napi::String json_path = info[0].As<Napi::String>();
+  //Napi::Number at = info[1].As<Napi::Number>();
+  return Napi::String::New(env, itemsjs::search_facets(input));
+}
+
 
 Napi::String itemsjs::JsonAtWrapped(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
@@ -507,6 +621,7 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
 Napi::Object itemsjs::Init(Napi::Env env, Napi::Object exports) {
   exports.Set("hello", Napi::Function::New(env, itemsjs::HelloWrapped));
   exports.Set("index", Napi::Function::New(env, itemsjs::IndexWrapped));
+  exports.Set("search_facets", Napi::Function::New(env, itemsjs::SearchFacetsWrapped));
   //exports.Set("query_parser", Napi::Function::New(env, itemsjs::IndexWrapped));
   exports.Set("json", Napi::Function::New(env, itemsjs::JsonWrapped));
   exports.Set("json_at", Napi::Function::New(env, itemsjs::JsonAtWrapped));
