@@ -144,19 +144,9 @@ module.exports.getFilterIndex = function(key) {
 }
 
 /**
- * it should be cached for x seconds
  * the roaring deserialization is taking the most time while making faceted query
  */
-var cache;
 module.exports.getFilterIndexes = function() {
-
-  /**
-   * not making cache right now
-   * we'll work once itemsjs become more stable
-   */
-  if (0 && cache) {
-    return cache;
-  }
 
   var output = {};
   var keys = module.exports.getKeysList();
@@ -179,8 +169,6 @@ module.exports.getFilterIndexes = function() {
   })
 
   txn.abort();
-
-  cache = output;
   return output;
 }
 

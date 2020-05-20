@@ -3,33 +3,9 @@
 const assert = require('assert');
 const storage = require('./../src/storage');
 const Facets = require('./../src/facets');
+const data = require('./fixtures/items.json');
 
 var facets;
-var data = [{
-  id: 1,
-  name: 'movie1',
-  tags: ['a', 'b', 'c', 'd'],
-  actors: ['john', 'alex'],
-  category: 'drama'
-}, {
-  id: 2,
-  name: 'movie2',
-  tags: ['a', 'e', 'f'],
-  actors: ['john', 'brad'],
-  category: 'comedy'
-}, {
-  id: 3,
-  name: 'movie3',
-  tags: ['a', 'c'],
-  actors: ['jeff'],
-  category: 'comedy'
-}, {
-  id: 4,
-  name: 'movie4',
-  tags: ['c', 'a', 'z'],
-  actors: ['jean'],
-  category: 'drama'
-}]
 
 describe('full text', function() {
 
@@ -91,5 +67,17 @@ describe('full text', function() {
 
     done();
   })
+
+  it('makes simple search with not existing term', function test(done) {
+
+    var input = {
+      query: 'drama2123'
+    }
+
+    var result = facets.fulltext(input);
+    assert.deepEqual(result.toArray(), []);
+    done();
+  })
+
 })
 

@@ -66,14 +66,10 @@ Facets.prototype = {
    */
   query_parser: function(query) {
 
-    return _.chain(query).split(' ')
-    .filter(v => {
-      return v.trim();
-    })
+    return query.split(' ')
     .map(v => {
-      return v.toLowerCase();
+      return v.trim().toLowerCase();
     })
-    .value();
   },
 
   /*
@@ -84,15 +80,6 @@ Facets.prototype = {
     var query = input.query || '';
 
     var tokens = this.query_parser(query);
-
-    // union
-    var bitmap = new RoaringBitmap32([]);
-    tokens.forEach(token => {
-      var index = storage.getSearchTermIndex(token);
-      if (index) {
-        bitmap = RoaringBitmap32.or(index, bitmap);
-      }
-    })
 
     // and
     var bitmap = null;
@@ -106,6 +93,10 @@ Facets.prototype = {
         }
       }
     })
+
+    if (bitmap === null) {
+      return new RoaringBitmap32([])
+    }
 
     return bitmap;
   },

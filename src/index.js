@@ -1,7 +1,6 @@
 const lib = require('./lib');
 const _ = require('lodash');
 const helpers = require('./helpers');
-const Fulltext = require('./fulltext');
 const Facets = require('./facets');
 const storage = require('./storage');
 const addon = require('bindings')('itemsjs_addon.node');
