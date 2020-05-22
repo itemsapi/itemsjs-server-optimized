@@ -11,11 +11,11 @@ const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 //module.exports.search = function(items, input, configuration, fulltext, facets) {
 module.exports.search = function(input, configuration, facets) {
 
-
   input = input || {};
 
   var per_page = parseInt(input.per_page || 12);
   var page = parseInt(input.page || 1);
+  var order = input.order;
   var query_ids;
   var search_time = new Date().getTime();
 
@@ -44,11 +44,7 @@ module.exports.search = function(input, configuration, facets) {
    * new facet search also by using sort
    */
 
-  //var facet_result = facets.search(input, {
-    //query_ids: input.query ? new RoaringBitmap32(sorted_ids) : undefined
-  //});
   var facet_result = facets.search(input, {
-    // it will be loaded with query ids
     query_ids: query_ids
   });
 
@@ -82,24 +78,31 @@ module.exports.search = function(input, configuration, facets) {
   }
 
 
-  // the ids should be sorted here if necessary
+  var new_items_indexes;
 
-  var new_items_indexes = filtered_indexes_bitmap.rangeUint32Array((page - 1) * per_page, per_page);
+  /**
+   * sorting items
+   */
+  var sorting_time = 0;
+  if (order === 'desc') {
+
+    var sorting_start_time = new Date().getTime();
+    var size = filtered_indexes_bitmap.size;
+    new_items_indexes = filtered_indexes_bitmap.rangeUint32Array(Math.max(0, size - page * per_page), per_page);
+    new_items_indexes = new_items_indexes.reverse();
+
+    sorting_time = new Date().getTime() - sorting_start_time;
+  }
+
+  if (!new_items_indexes) {
+    new_items_indexes = filtered_indexes_bitmap.rangeUint32Array((page - 1) * per_page, per_page);
+  }
 
   var new_items = storage.getItems(new_items_indexes);
 
   facets_ids_time = new Date().getTime() - facets_ids_time;
   // -------------------------------------
 
-  /**
-   * sorting items
-   */
-  var sorting_time = 0;
-  if (input.sort) {
-    var sorting_start_time = new Date().getTime();
-    filtered_items = module.exports.sorted_items(filtered_items, input.sort, configuration.sortings);
-    sorting_time = new Date().getTime() - sorting_start_time;
-  }
 
   /**
    * calculating facets
@@ -130,26 +133,6 @@ module.exports.search = function(input, configuration, facets) {
     }
   };
 }
-
-/**
- * return items by sort
- */
-module.exports.sorted_items = function(items, sort, sortings) {
-  if (sortings && sortings[sort]) {
-    sort = sortings[sort];
-  }
-
-  if (sort.field) {
-    return _.orderBy(
-      items,
-      sort.field,
-      sort.order || 'asc'
-    );
-  }
-
-  return items;
-}
-
 
 /**
  * returns list of elements in specific facet

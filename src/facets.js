@@ -139,19 +139,20 @@ Facets.prototype = {
 
     _.mapValues(indexes, function(bitmap, key) {
 
-      var array = key.split(/\.(.+)/);
-      var key1 = array[0];
-      var key2 = array[1];
+      var [key1, key2] = helpers2.parse_filter_key(key);
 
-      if (!temp_facet['bits_data_temp'][key1]) {
-        temp_facet['bits_data_temp'][key1] = {};
+      if (key1 && key2) {
+
+        if (!temp_facet['bits_data_temp'][key1]) {
+          temp_facet['bits_data_temp'][key1] = {};
+        }
+
+        if (!temp_facet['data'][key1]) {
+          temp_facet['data'][key1] = {};
+        }
+
+        temp_facet['bits_data_temp'][key1][key2] = bitmap;
       }
-
-      if (!temp_facet['data'][key1]) {
-        temp_facet['data'][key1] = {};
-      }
-
-      temp_facet['bits_data_temp'][key1][key2] = bitmap;
     })
     console.log(`load indexes from db + parsing: ${new Date().getTime() - time}`);
     console.log(`calculation done for: ${Object.keys(indexes).length} filters`);

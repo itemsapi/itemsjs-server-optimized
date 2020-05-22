@@ -332,6 +332,19 @@ const getBuckets = function(data, input, aggregations) {
   })
 }
 
+
+const parse_filter_key = function(key) {
+
+  var array = key.split(/\.(.+)/);
+  var key1 = array[0];
+  var key2 = array[1];
+
+  return [key1, key2];
+}
+
+
+
+module.exports.parse_filter_key = parse_filter_key;
 module.exports.uniq_merge_sorted_arrays = uniq_merge_sorted_arrays;
 module.exports.facets_intersection = facets_intersection;
 //module.exports.intersection = intersection;
@@ -342,3 +355,4 @@ module.exports.combination = combination;
 module.exports.index = findex;
 module.exports.getBuckets = getBuckets;
 module.exports.getFacets = getBuckets;
+

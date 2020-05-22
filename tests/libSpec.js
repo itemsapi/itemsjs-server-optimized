@@ -5,6 +5,7 @@ const Facets = require('./../src/facets');
 const storage = require('./../src/storage');
 const lib = require('./../src/lib');
 const items = require('./fixtures/items.json');
+var facets = new Facets();
 
 var configuration = {
   aggregations: {
@@ -28,16 +29,15 @@ describe('search', function() {
   before(function(done) {
     storage.dropDB();
     storage.deleteConfiguration();
+    facets.index({
+      json_object: items,
+      configuration: configuration
+    });
     done();
   });
 
   it('search 1', function test(done) {
 
-    var facets = new Facets();
-    facets.index({
-      json_object: items,
-      configuration: configuration
-    });
 
     var input = {
       //query: 'okej',
@@ -50,7 +50,31 @@ describe('search', function() {
 
     for (var i = 0 ; i < 20 ; ++i) {
       var result = lib.search(input, configuration, facets);
+      //console.log(result);
+      assert.deepEqual(result.pagination.total, 2);
     }
+
+    done();
+  })
+
+  it('search asceding / descending order', function test(done) {
+
+    var input = {
+      per_page: 100,
+    }
+
+    var result = lib.search(input, configuration, facets);
+    assert.deepEqual(result.pagination.total, 4);
+    assert.deepEqual(result.data.items[0].id, 1);
+
+    var input = {
+      per_page: 100,
+      order: 'desc'
+    }
+
+    var result = lib.search(input, configuration, facets);
+    assert.deepEqual(result.pagination.total, 4);
+    assert.deepEqual(result.data.items[0].id, 4);
 
     done();
   })
