@@ -50,54 +50,7 @@ describe('search', function() {
     done();
   })
 
-
-  it('search 1', function test(done) {
-
-    var facets = new Facets();
-    facets.index({
-      json_object: items,
-      append: false,
-      configuration: configuration
-    });
-
-    var input = {
-      filters: {
-        tags: ['a'],
-        category: ['drama']
-      }
-    }
-
-    var result = lib.search(input, configuration, facets);
-    assert.equal(result.data.items.length, 2);
-
-    done();
-  })
-
-  it('searches with query', function test(done) {
-
-    var facets = new Facets();
-    facets.index({
-      json_object: items,
-      append: false,
-      configuration: configuration
-    });
-
-    var input = {
-      filters: {
-        tags: ['a'],
-        category: ['drama']
-      },
-      query: 'movie4'
-    }
-
-    var result = lib.search(input, configuration, facets);
-
-    assert.equal(result.data.items.length, 1);
-
-    done();
-  })
-
-  it('search 2', function test(done) {
+  it('searches with two filters', function test(done) {
 
     var itemsjs = require('./../src/index')();
 
@@ -119,7 +72,7 @@ describe('search', function() {
     done();
   })
 
-  it('search 3', function test(done) {
+  it('makes search with empty filters', function test(done) {
 
     var itemsjs = require('./../src/index')();
 
@@ -139,6 +92,46 @@ describe('search', function() {
     done();
   })
 
+  it('makes search with not filters', function test(done) {
 
+    var itemsjs = require('./../src/index')();
+
+    itemsjs.index({
+      json_object: items,
+      configuration: configuration,
+      append: false
+    });
+
+    var result = itemsjs.search({
+      not_filters: {
+        tags: ['c']
+      }
+    });
+
+    assert.equal(result.data.items.length, 1);
+
+    done();
+  })
+
+  it('makes search with many not filters', function test(done) {
+
+    var itemsjs = require('./../src/index')();
+
+    itemsjs.index({
+      json_object: items,
+      configuration: configuration,
+      append: false
+    });
+
+    var result = itemsjs.search({
+      not_filters: {
+        tags: ['c', 'e']
+      }
+    });
+
+    assert.equal(result.data.items.length, 0);
+
+    done();
+  })
 })
 

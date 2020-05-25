@@ -1,6 +1,45 @@
 const _ = require('lodash');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 
+var clone = function(val) {
+
+  try {
+    return JSON.parse(JSON.stringify(val));
+  } catch (e) {
+    return val;
+  }
+}
+
+var mergeAggregations = function(aggregations, input) {
+
+  return _.mapValues(clone(aggregations), (val, key) => {
+
+    if (!val.field) {
+      val.field = key;
+    }
+
+    var filters = [];
+    if (input.filters && input.filters[key]) {
+      filters = input.filters[key];
+    }
+
+    val.filters = filters;
+
+    var not_filters = [];
+    if (input.not_filters && input.not_filters[key]) {
+      not_filters = input.not_filters[key];
+    }
+
+    if (input.exclude_filters && input.exclude_filters[key]) {
+      not_filters = input.exclude_filters[key];
+    }
+
+    val.not_filters = not_filters;
+
+
+    return val;
+  });
+}
 
 const uniq_merge_sorted_arrays = function(array1, array2) {
   var merged = [];
@@ -246,6 +285,36 @@ const disjunction_union = function(facets_data, input, config) {
 }
 
 /**
+ * calculcates not ids for facets
+ */
+const not_ids = function(facets_data, input, config) {
+
+  console.log(facets_data)
+  console.log(input)
+
+  var output = new RoaringBitmap32([]);
+  var i = 0;
+  _.mapValues(input.not_filters, function(filters, field) {
+
+    filters.forEach(filter => {
+
+      console.log(facets_data[field][filter])
+
+
+      ++i;
+      output = RoaringBitmap32.or(output, facets_data[field][filter]);
+    })
+  })
+
+  if (i === 0) {
+    return null;
+  }
+
+  return output;
+
+}
+
+/**
  * calculates ids for facets
  * if there is no facet input then return null to not save resources for OR calculation
  * null means facets haven't crossed searched items
@@ -344,12 +413,13 @@ const parse_filter_key = function(key) {
 
 
 
-module.exports.parse_filter_key = parse_filter_key;
-module.exports.uniq_merge_sorted_arrays = uniq_merge_sorted_arrays;
+module.exports.mergeAggregations = mergeAggregations;
+module.exports.parse_filter_key = parse_filter_key;.exports.uniq_merge_sorted_arrays = uniq_merge_sorted_arrays;
 module.exports.facets_intersection = facets_intersection;
 //module.exports.intersection = intersection;
 module.exports.intersection = intersection2;
 module.exports.facets_ids = ids;
+module.exports.facets_not_ids = not_ids;
 module.exports.disjunction_union = disjunction_union;
 module.exports.combination = combination;
 module.exports.index = findex;

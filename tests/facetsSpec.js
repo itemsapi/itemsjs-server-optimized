@@ -39,29 +39,6 @@ describe('conjunctive search', function() {
     });
   });
 
-  //var itemsjs = require('./../index')(items, {
-    //aggregations: aggregations
-  //});
-
-  it('checks index', function test(done) {
-
-    //var result = facets.get_index();
-    /*assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
-    assert.deepEqual(result.bits_data.tags.a.toArray(), [1, 2, 3, 4]);
-    assert.deepEqual(result.data.tags.b, [1]);
-    assert.deepEqual(result.bits_data.tags.b.toArray(), [1]);
-    assert.deepEqual(result.data.tags.c, [1, 3, 4]);
-    assert.deepEqual(result.data.tags.d, [1]);
-    assert.deepEqual(result.data.tags.e, [2]);
-    assert.deepEqual(result.data.tags.z, [4]);
-    assert.deepEqual(result.data.actors.jean, [4]);
-    assert.deepEqual(result.bits_data.actors.jean.toArray(), [4]);
-    assert.deepEqual(result.data.actors.john, [1, 2]);
-    assert.deepEqual(result.bits_data.actors.john.toArray(), [1, 2]);*/
-
-    done();
-  })
-
   it('returns facets for two fields (tags, actors)', function test(done) {
 
     var input = {
@@ -81,7 +58,8 @@ describe('conjunctive search', function() {
     assert.deepEqual(result.data.category.comedy, [3]);
 
     var ids = helpers2.facets_ids(result['bits_data_temp'], input, configuration.aggregations);
-    assert.deepEqual(ids.toArray(), [1, 3, 4]);
+    //assert.deepEqual(ids.toArray(), [1, 3, 4]);
+    assert.deepEqual(result.ids.toArray(), [1, 3, 4]);
 
     var buckets = helpers2.getBuckets(result, input, configuration.aggregations);
     //console.log(buckets.tags.buckets);
@@ -208,6 +186,7 @@ describe('conjunctive search', function() {
     done();
   })
 })
+
 
 describe('disjunctive search', function() {
 
@@ -541,3 +520,57 @@ describe('generates facets crossed with query', function() {
     done();
   })
 })
+
+describe('negative filters', function() {
+
+  var configuration = {
+    aggregations: {
+      tags: {
+        title: 'Tags',
+        conjunction: true,
+      },
+      actors: {
+        title: 'Actors',
+        conjunction: true,
+      },
+      category: {
+        title: 'Category',
+        conjunction: true,
+      }
+    }
+  }
+
+  before(function() {
+    storage.dropDB();
+    facets = new Facets();
+    facets.index({
+      json_object: items,
+      append: false,
+      configuration: configuration
+    });
+  });
+
+  it('excludes filter from search', function test(done) {
+
+    var input = {
+      not_filters: {
+        tags: ['c']
+      }
+    }
+
+    var result = facets.search(input, {
+      test: true
+    });
+
+    assert.deepEqual(result.data.tags.a, [2]);
+    assert.deepEqual(result.data.tags.c, []);
+    assert.deepEqual(result.data.tags.e, [2]);
+    assert.deepEqual(result.data.actors.john, [2]);
+
+    assert.deepEqual(result.not_ids.toArray(), [1, 3, 4]);
+
+    done();
+  })
+
+})
+

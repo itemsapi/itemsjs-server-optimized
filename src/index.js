@@ -1,6 +1,6 @@
 const lib = require('./lib');
 const _ = require('lodash');
-const helpers = require('./helpers');
+const helpers = require('./helpers2');
 const Facets = require('./facets');
 const storage = require('./storage');
 const addon = require('bindings')('itemsjs_addon.node');
@@ -46,6 +46,8 @@ module.exports = function itemsjs() {
        * merge configuration aggregation with user input
        */
       input.aggregations = helpers.mergeAggregations(configuration.aggregations, input);
+
+
 
       return lib.search(input, configuration, facets);
     },

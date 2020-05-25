@@ -145,9 +145,6 @@ Facets.prototype = {
 
         if (!temp_facet['bits_data_temp'][key1]) {
           temp_facet['bits_data_temp'][key1] = {};
-        }
-
-        if (!temp_facet['data'][key1]) {
           temp_facet['data'][key1] = {};
         }
 
@@ -155,8 +152,7 @@ Facets.prototype = {
       }
     })
     console.log(`load indexes from db + parsing: ${new Date().getTime() - time}`);
-    console.log(`calculation done for: ${Object.keys(indexes).length} filters`);
-
+    console.log(`calculation will be done for: ${Object.keys(indexes).length} indexes`);
 
 
     var time = new Date().getTime();
@@ -173,12 +169,61 @@ Facets.prototype = {
     console.log('combination: ' + time);
     // -------------------------------
 
+    /**
+     * calculating not ids
+     */
+    var not_ids = new RoaringBitmap32([]);
+    // consider removing "i" and returns only bitmap even if empty
+    var i = 0;
 
+    _.mapValues(input.not_filters, function(filters, field) {
+
+      filters.forEach(filter => {
+
+        ++i;
+        not_ids = RoaringBitmap32.or(not_ids, temp_facet['bits_data_temp'][field][filter]);
+      })
+    })
+
+    if (i === 0) {
+      not_ids = null;
+    }
+
+    temp_facet.not_ids = not_ids;
+
+
+    /**
+     * not filters calculations
+     *
+     */
+
+    var time = new Date().getTime();
+    var i = 0;
+
+    _.mapValues(temp_facet['bits_data_temp'], function(values, key) {
+      _.mapValues(temp_facet['bits_data_temp'][key], function(facet_indexes, key2) {
+
+        if (temp_facet.not_ids) {
+          var result = RoaringBitmap32.andNot(facet_indexes, temp_facet.not_ids);
+          temp_facet['bits_data_temp'][key][key2] = result;
+          ++i;
+        }
+      })
+    })
+
+    time = new Date().getTime() - time;
+    console.log('not filters crossing matrix: ' + time);
+    console.log(`not filters calculated: ${i} times`);
+
+    /**
+     * end of not filters calculations
+     */
 
     // -------------------------------
     var time = new Date().getTime();
     var filters_indexes = {};
 
+    var i = 0 ;
     // input_key tags, couriers
     // input_values real filters
     _.mapValues(input.filters, function(filters, field) {
@@ -221,14 +266,17 @@ Facets.prototype = {
               cond = 1;
             } else if (config[field].conjunction === false && field !== key) {
               result = RoaringBitmap32.and(facet_indexes, union[field]);
+              ++i;
               cond = 2;
             } else if (config[key].conjunction === false && field !== key) {
               // it's new and it's gonna work
               result = RoaringBitmap32.and(facet_indexes, combination[field]);
+              ++i;
               //result = facet_indexes.andInPlace(combination[field]);
               cond = 3;
             } else {
               result = RoaringBitmap32.and(filter_indexes, facet_indexes);
+              ++i;
               //result = facet_indexes.andInPlace(filter_indexes);
               cond = 4;
             }
@@ -241,6 +289,7 @@ Facets.prototype = {
 
     time = new Date().getTime() - time;
     console.log('crossing matrix: ' + time);
+    console.log(`filters calculated: ${i} times`);
 
 
     // -------------------------------
@@ -262,17 +311,27 @@ Facets.prototype = {
     // -------------------------------
 
 
+    /**
+     * calculating ids
+     */
+    var ids = new RoaringBitmap32([]);
+    // consider removing "i" and returns only bitmap even if empty
+    var i = 0;
 
-    // -------------------------------
-    /*var time = new Date().getTime();
-    _.mapValues(temp_facet['bits_data_temp'], function(values, key) {
-      _.mapValues(temp_facet['bits_data_temp'][key], function(facet_indexes, key2) {
-        temp_facet['bits_data_temp'][key][key2].size;
+    _.mapValues(input.filters, function(filters, field) {
+
+      filters.forEach(filter => {
+
+        ++i;
+        ids = RoaringBitmap32.or(ids, temp_facet['bits_data_temp'][field][filter]);
       })
     })
-    time = new Date().getTime() - time;
-    console.log('calculating length from bits_data_temp: ' + time);*/
-    // -------------------------------
+
+    if (i === 0) {
+      ids = null;
+    }
+
+    temp_facet.ids = ids;
 
     return temp_facet;
   }

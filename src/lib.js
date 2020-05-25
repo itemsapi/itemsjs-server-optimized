@@ -1,5 +1,4 @@
 const _ = require('lodash');
-const helpers = require('./helpers');
 const helpers2 = require('./helpers2');
 const storage = require('./storage');
 const algo = require('./algo');
@@ -54,12 +53,8 @@ module.exports.search = function(input, configuration, facets) {
   new_facet_time = new Date().getTime() - new_facet_time;
 
 
-  // new filters to items
-  // -------------------------------------
-
   var facets_ids_time = new Date().getTime();
   // it's super fast around 5ms on 500K records
-  var facets_ids_bits = helpers2.facets_ids(facet_result['bits_data_temp'], input, configuration.aggregations);
 
   //var _ids = storage.getIds();
   var _ids_bitmap = storage.getIdsBitmap();
@@ -73,10 +68,13 @@ module.exports.search = function(input, configuration, facets) {
 
   var filtered_indexes_bitmap = _ids_bitmap;
 
-  if (facets_ids_bits) {
-    filtered_indexes_bitmap = RoaringBitmap32.and(_ids_bitmap, facets_ids_bits);
+  if (facet_result.ids) {
+    filtered_indexes_bitmap = RoaringBitmap32.and(_ids_bitmap, facet_result.ids);
   }
 
+  if (facet_result.not_ids) {
+    filtered_indexes_bitmap = RoaringBitmap32.andNot(_ids_bitmap, facet_result.not_ids);
+  }
 
   var new_items_indexes;
 
