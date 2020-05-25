@@ -5,25 +5,26 @@ const Facets = require('./../src/facets');
 const storage = require('./../src/storage');
 const lib = require('./../src/lib');
 const items = require('./fixtures/items.json');
-
-var configuration = {
-  aggregations: {
-    tags: {
-      title: 'Tags',
-      conjunction: true,
-    },
-    actors: {
-      title: 'Actors',
-      conjunction: true,
-    },
-    category: {
-      title: 'Category',
-      conjunction: true,
-    }
-  }
-}
+var itemsjs = require('./../src/index')();
 
 describe('search', function() {
+
+  var configuration = {
+    aggregations: {
+      tags: {
+        title: 'Tags',
+        conjunction: true,
+      },
+      actors: {
+        title: 'Actors',
+        conjunction: true,
+      },
+      category: {
+        title: 'Category',
+        conjunction: true,
+      }
+    }
+  }
 
   before(function(done) {
     storage.deleteConfiguration();
@@ -37,9 +38,6 @@ describe('search', function() {
 
   it('index is empty so cannot search', function test(done) {
 
-    var itemsjs = require('./../src/index')();
-
-
     try {
 
       var result = itemsjs.search();
@@ -52,7 +50,6 @@ describe('search', function() {
 
   it('searches with two filters', function test(done) {
 
-    var itemsjs = require('./../src/index')();
 
     itemsjs.index({
       json_object: items,
@@ -74,8 +71,6 @@ describe('search', function() {
 
   it('makes search with empty filters', function test(done) {
 
-    var itemsjs = require('./../src/index')();
-
     itemsjs.index({
       json_object: items,
       configuration: configuration,
@@ -93,8 +88,6 @@ describe('search', function() {
   })
 
   it('makes search with not filters', function test(done) {
-
-    var itemsjs = require('./../src/index')();
 
     itemsjs.index({
       json_object: items,
@@ -115,8 +108,6 @@ describe('search', function() {
 
   it('makes search with many not filters', function test(done) {
 
-    var itemsjs = require('./../src/index')();
-
     itemsjs.index({
       json_object: items,
       configuration: configuration,
@@ -135,3 +126,32 @@ describe('search', function() {
   })
 })
 
+
+describe('no configuration', function() {
+
+  var configuration = {
+    aggregations: {
+    }
+  }
+
+  before(function(done) {
+    storage.deleteConfiguration();
+    storage.dropDB();
+    itemsjs.index({
+      json_object: items,
+      append: false,
+      configuration: configuration
+    });
+    done();
+  });
+
+  it('searches with two filters', function test(done) {
+
+    var result = itemsjs.search({
+    });
+
+    assert.equal(result.data.items.length, 4);
+
+    done();
+  })
+})

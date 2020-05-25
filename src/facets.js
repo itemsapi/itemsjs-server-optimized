@@ -161,31 +161,10 @@ Facets.prototype = {
 
     var temp_facet = this.load_indexes();
 
-
-    var time = new Date().getTime();
-    var union = helpers2.disjunction_union(temp_facet['bits_data_temp'], input, config);
-    time = new Date().getTime() - time;
-    console.log('disjunction: ' + time);
-
-    var time = new Date().getTime();
-    var disjunction2 = helpers2.disjunction2(temp_facet['bits_data_temp'], input, config);
-    time = new Date().getTime() - time;
-    console.log('disjunction2: ' + time);
-
-    // -------------------------------
-    var time = new Date().getTime();
-    var intersection_all = helpers2.intersection_all(temp_facet['bits_data_temp'], input, config);
-    time = new Date().getTime() - time;
-    console.log('intersection all: ' + time);
-    // -------------------------------
-
-
-    // -------------------------------
     var time = new Date().getTime();
     var combination = helpers2.combination(temp_facet['bits_data_temp'], input, config);
     time = new Date().getTime() - time;
     console.log('combination: ' + time);
-    // -------------------------------
 
     /**
      * calculating not ids
@@ -249,8 +228,8 @@ Facets.prototype = {
 
         var result;
 
-        if (disjunction2[key]) {
-          result = RoaringBitmap32.and(facet_indexes, disjunction2[key]);
+        if (combination[key]) {
+          result = RoaringBitmap32.and(facet_indexes, combination[key]);
           ++i;
         }
 

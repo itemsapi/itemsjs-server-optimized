@@ -224,58 +224,7 @@ const findex = function(items, config) {
   return facets;
 }
 
-/**
- * intersection or unique merge for each facet groups
- * it's working probably only for disjunction
- * and for facets being filtered
- */
-// change name to disjunction_facet_sum
-
 const combination = function(facets_data, input, config) {
-
-  var output = {};
-
-  _.mapValues(input.filters, function(filters, field) {
-
-    filters.forEach(filter => {
-
-      if (!output[field]) {
-        output[field] = new RoaringBitmap32(facets_data[field][filter]);
-      } else if (facets_data[field][filter]) {
-        output[field] = RoaringBitmap32.and(output[field], facets_data[field][filter]);
-      }
-    })
-  })
-
-  //return new RoaringBitmap32(output);
-  return output;
-}
-
-/**
- * intersection for each filter indexes
- */
-
-const intersection_all = function(facets_data, input, config) {
-
-  var output = null;
-
-  _.mapValues(input.filters, function(filters, field) {
-
-    filters.forEach(filter => {
-
-      if (!output) {
-        output = new RoaringBitmap32(facets_data[field][filter]);
-      } else if (facets_data[field][filter]) {
-        output = RoaringBitmap32.and(output, facets_data[field][filter]);
-      }
-    })
-  })
-
-  return output;
-}
-
-
-const disjunction2 = function(facets_data, input, config) {
 
   var output = {};
 
@@ -300,53 +249,25 @@ const disjunction2 = function(facets_data, input, config) {
 
   _.mapValues(facets_data, function(values, key) {
 
-    // it's only for disjunctive filters
-    /*if (config[key].conjunction !== false) {
-      return;
-    }*/
-
     // to delete
-    if (!output[key]) {
-      output[key] = null;
-    }
+    //if (!output[key]) {
+      //output[key] = null;
+    //}
 
-    //_.mapValues(input.filters, function(filters, field) {
     _.map(filters_array, function(object) {
 
       var filters = object.values;
       var field = object.key;
 
-      //console.log('-----------------: ', key, field);
-      //console.log(output[key]);
-
       filters.forEach(filter => {
 
         var result;
 
-
-
-        // calc for disjunctive filters
-        if (config[key].conjunction === false) {
-
-          if (key !== field) {
-
-            if (!output[key]) {
-              result = facets_data[field][filter];
-            } else {
-              if (config[field].conjunction !== false) {
-                result = RoaringBitmap32.and(output[key], facets_data[field][filter]);
-              } else {
-                result = RoaringBitmap32.or(output[key], facets_data[field][filter]);
-              }
-            }
-          }
-          // calc for conjunctive filters
-        } else if (config[key].conjunction !== false) {
+        if ((config[key].conjunction === false && key !== field) || config[key].conjunction !== false) {
 
           if (!output[key]) {
             result = facets_data[field][filter];
           } else {
-
             if (config[field].conjunction !== false) {
               result = RoaringBitmap32.and(output[key], facets_data[field][filter]);
             } else {
@@ -356,20 +277,12 @@ const disjunction2 = function(facets_data, input, config) {
         }
 
         if (result) {
-          //console.log('result size: ', result.size);
-          //console.log(result.toArray());
-        } else {
-          //console.log('no result');
-        }
-
-        if (result) {
           output[key] = result;
         }
       })
     })
   })
 
-  //return new RoaringBitmap32(output);
   return output;
 }
 
@@ -544,10 +457,10 @@ module.exports.facets_intersection = facets_intersection;
 module.exports.intersection = intersection2;
 module.exports.facets_ids = ids;
 module.exports.facets_not_ids = not_ids;
-module.exports.disjunction_union = disjunction_union;
-module.exports.disjunction2 = disjunction2;
+//module.exports.disjunction_union = disjunction_union;
 module.exports.combination = combination;
-module.exports.intersection_all = intersection_all;
+//module.exports.combination = combination;
+//module.exports.intersection_all = intersection_all;
 module.exports.index = findex;
 module.exports.getBuckets = getBuckets;
 module.exports.getFacets = getBuckets;
