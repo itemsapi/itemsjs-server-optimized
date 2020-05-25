@@ -78,5 +78,38 @@ describe('search', function() {
 
     done();
   })
+
+  it('makes simple filter with two fields', function test(done) {
+
+    var input = {
+      filters: {
+        tags: ['a'],
+        category: ['drama']
+      }
+    }
+
+    var result = lib.search(input, configuration, facets);
+    assert.equal(result.data.items.length, 2);
+
+    done();
+  })
+
+  it('searches with query', function test(done) {
+
+    var input = {
+      filters: {
+        tags: ['a'],
+        category: ['drama']
+      },
+      query: 'movie4'
+    }
+
+    var result = lib.search(input, configuration, facets);
+
+    assert.equal(result.data.items.length, 1);
+
+    done();
+  })
+
 })
 

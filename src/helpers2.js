@@ -1,6 +1,45 @@
 const _ = require('lodash');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 
+var clone = function(val) {
+
+  try {
+    return JSON.parse(JSON.stringify(val));
+  } catch (e) {
+    return val;
+  }
+}
+
+var mergeAggregations = function(aggregations, input) {
+
+  return _.mapValues(clone(aggregations), (val, key) => {
+
+    if (!val.field) {
+      val.field = key;
+    }
+
+    var filters = [];
+    if (input.filters && input.filters[key]) {
+      filters = input.filters[key];
+    }
+
+    val.filters = filters;
+
+    var not_filters = [];
+    if (input.not_filters && input.not_filters[key]) {
+      not_filters = input.not_filters[key];
+    }
+
+    if (input.exclude_filters && input.exclude_filters[key]) {
+      not_filters = input.exclude_filters[key];
+    }
+
+    val.not_filters = not_filters;
+
+
+    return val;
+  });
+}
 
 const uniq_merge_sorted_arrays = function(array1, array2) {
   var merged = [];
@@ -143,7 +182,7 @@ const findex = function(items, config) {
           facets['bits_data'][field] = {};
         }
 
-        console.log(indexes);
+        //console.log(indexes);
 
         facets['bits_data'][field][key] = new FastBitSet(indexes);
       })*/
@@ -185,32 +224,68 @@ const findex = function(items, config) {
   return facets;
 }
 
-/**
- * intersection or unique merge for each facet groups
- * it's working probably only for disjunction
- * and for facets being filtered
- */
-// change name to disjunction_facet_sum
-
 const combination = function(facets_data, input, config) {
 
   var output = {};
 
-  _.mapValues(input.filters, function(filters, field) {
+  var filters_array = _.map(input.filters, function(filter, key) {
+    return {
+      key: key,
+      values: filter,
+      conjunction: config[key].conjunction !== false,
+    }
+  })
 
-    filters.forEach(filter => {
+  filters_array.sort(function(a, b) {
+    return a.conjunction > b.conjunction ? 1 : -1;
+  })
 
-      if (!output[field]) {
-        output[field] = new RoaringBitmap32(facets_data[field][filter]);
-      } else if (facets_data[field][filter]) {
-        output[field] = RoaringBitmap32.and(output[field], facets_data[field][filter]);
-      }
+  //console.log('------------------------------------------------------------------');
+  //console.log('start disjunction 2');
+  //console.log('------------------------------------------------------------------');
+
+  //console.log(filters_array);
+  //console.log(input.filters);
+
+  _.mapValues(facets_data, function(values, key) {
+
+    // to delete
+    //if (!output[key]) {
+      //output[key] = null;
+    //}
+
+    _.map(filters_array, function(object) {
+
+      var filters = object.values;
+      var field = object.key;
+
+      filters.forEach(filter => {
+
+        var result;
+
+        if ((config[key].conjunction === false && key !== field) || config[key].conjunction !== false) {
+
+          if (!output[key]) {
+            result = facets_data[field][filter];
+          } else {
+            if (config[field].conjunction !== false) {
+              result = RoaringBitmap32.and(output[key], facets_data[field][filter]);
+            } else {
+              result = RoaringBitmap32.or(output[key], facets_data[field][filter]);
+            }
+          }
+        }
+
+        if (result) {
+          output[key] = result;
+        }
+      })
     })
   })
 
-  //return new RoaringBitmap32(output);
   return output;
 }
+
 
 const disjunction_union = function(facets_data, input, config) {
 
@@ -243,6 +318,36 @@ const disjunction_union = function(facets_data, input, config) {
 
   //return new RoaringBitmap32(output);
   return output;
+}
+
+/**
+ * calculcates not ids for facets
+ */
+const not_ids = function(facets_data, input, config) {
+
+  //console.log(facets_data)
+  //console.log(input)
+
+  var output = new RoaringBitmap32([]);
+  var i = 0;
+  _.mapValues(input.not_filters, function(filters, field) {
+
+    filters.forEach(filter => {
+
+      //console.log(facets_data[field][filter])
+
+
+      ++i;
+      output = RoaringBitmap32.or(output, facets_data[field][filter]);
+    })
+  })
+
+  if (i === 0) {
+    return null;
+  }
+
+  return output;
+
 }
 
 /**
@@ -344,14 +449,18 @@ const parse_filter_key = function(key) {
 
 
 
+module.exports.mergeAggregations = mergeAggregations;
 module.exports.parse_filter_key = parse_filter_key;
-module.exports.uniq_merge_sorted_arrays = uniq_merge_sorted_arrays;
+exports.uniq_merge_sorted_arrays = uniq_merge_sorted_arrays;
 module.exports.facets_intersection = facets_intersection;
 //module.exports.intersection = intersection;
 module.exports.intersection = intersection2;
 module.exports.facets_ids = ids;
-module.exports.disjunction_union = disjunction_union;
+module.exports.facets_not_ids = not_ids;
+//module.exports.disjunction_union = disjunction_union;
 module.exports.combination = combination;
+//module.exports.combination = combination;
+//module.exports.intersection_all = intersection_all;
 module.exports.index = findex;
 module.exports.getBuckets = getBuckets;
 module.exports.getFacets = getBuckets;

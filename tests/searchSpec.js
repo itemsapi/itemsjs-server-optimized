@@ -5,25 +5,26 @@ const Facets = require('./../src/facets');
 const storage = require('./../src/storage');
 const lib = require('./../src/lib');
 const items = require('./fixtures/items.json');
-
-var configuration = {
-  aggregations: {
-    tags: {
-      title: 'Tags',
-      conjunction: true,
-    },
-    actors: {
-      title: 'Actors',
-      conjunction: true,
-    },
-    category: {
-      title: 'Category',
-      conjunction: true,
-    }
-  }
-}
+var itemsjs = require('./../src/index')();
 
 describe('search', function() {
+
+  var configuration = {
+    aggregations: {
+      tags: {
+        title: 'Tags',
+        conjunction: true,
+      },
+      actors: {
+        title: 'Actors',
+        conjunction: true,
+      },
+      category: {
+        title: 'Category',
+        conjunction: true,
+      }
+    }
+  }
 
   before(function(done) {
     storage.deleteConfiguration();
@@ -37,9 +38,6 @@ describe('search', function() {
 
   it('index is empty so cannot search', function test(done) {
 
-    var itemsjs = require('./../src/index')();
-
-
     try {
 
       var result = itemsjs.search();
@@ -50,56 +48,8 @@ describe('search', function() {
     done();
   })
 
+  it('searches with two filters', function test(done) {
 
-  it('search 1', function test(done) {
-
-    var facets = new Facets();
-    facets.index({
-      json_object: items,
-      append: false,
-      configuration: configuration
-    });
-
-    var input = {
-      filters: {
-        tags: ['a'],
-        category: ['drama']
-      }
-    }
-
-    var result = lib.search(input, configuration, facets);
-    assert.equal(result.data.items.length, 2);
-
-    done();
-  })
-
-  it('searches with query', function test(done) {
-
-    var facets = new Facets();
-    facets.index({
-      json_object: items,
-      append: false,
-      configuration: configuration
-    });
-
-    var input = {
-      filters: {
-        tags: ['a'],
-        category: ['drama']
-      },
-      query: 'movie4'
-    }
-
-    var result = lib.search(input, configuration, facets);
-
-    assert.equal(result.data.items.length, 1);
-
-    done();
-  })
-
-  it('search 2', function test(done) {
-
-    var itemsjs = require('./../src/index')();
 
     itemsjs.index({
       json_object: items,
@@ -119,9 +69,7 @@ describe('search', function() {
     done();
   })
 
-  it('search 3', function test(done) {
-
-    var itemsjs = require('./../src/index')();
+  it('makes search with empty filters', function test(done) {
 
     itemsjs.index({
       json_object: items,
@@ -139,6 +87,71 @@ describe('search', function() {
     done();
   })
 
+  it('makes search with not filters', function test(done) {
 
+    itemsjs.index({
+      json_object: items,
+      configuration: configuration,
+      append: false
+    });
+
+    var result = itemsjs.search({
+      not_filters: {
+        tags: ['c']
+      }
+    });
+
+    assert.equal(result.data.items.length, 1);
+
+    done();
+  })
+
+  it('makes search with many not filters', function test(done) {
+
+    itemsjs.index({
+      json_object: items,
+      configuration: configuration,
+      append: false
+    });
+
+    var result = itemsjs.search({
+      not_filters: {
+        tags: ['c', 'e']
+      }
+    });
+
+    assert.equal(result.data.items.length, 0);
+
+    done();
+  })
 })
 
+
+describe('no configuration', function() {
+
+  var configuration = {
+    aggregations: {
+    }
+  }
+
+  before(function(done) {
+    storage.deleteConfiguration();
+    storage.dropDB();
+    itemsjs.index({
+      json_object: items,
+      append: false,
+      configuration: configuration
+    });
+    done();
+  });
+
+  it('searches with two filters', function test(done) {
+
+    var result = itemsjs.search({
+    });
+
+    assert.equal(result.data.items.length, 4);
+
+    done();
+  })
+})

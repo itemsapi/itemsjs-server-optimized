@@ -8,6 +8,8 @@ const storage = require('./../src/storage');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 const items = require('./fixtures/items.json');
 
+//https://jsfiddle.net/apsq2goz/4/
+
 var facets;
 
 describe('conjunctive search', function() {
@@ -39,29 +41,6 @@ describe('conjunctive search', function() {
     });
   });
 
-  //var itemsjs = require('./../index')(items, {
-    //aggregations: aggregations
-  //});
-
-  it('checks index', function test(done) {
-
-    //var result = facets.get_index();
-    /*assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
-    assert.deepEqual(result.bits_data.tags.a.toArray(), [1, 2, 3, 4]);
-    assert.deepEqual(result.data.tags.b, [1]);
-    assert.deepEqual(result.bits_data.tags.b.toArray(), [1]);
-    assert.deepEqual(result.data.tags.c, [1, 3, 4]);
-    assert.deepEqual(result.data.tags.d, [1]);
-    assert.deepEqual(result.data.tags.e, [2]);
-    assert.deepEqual(result.data.tags.z, [4]);
-    assert.deepEqual(result.data.actors.jean, [4]);
-    assert.deepEqual(result.bits_data.actors.jean.toArray(), [4]);
-    assert.deepEqual(result.data.actors.john, [1, 2]);
-    assert.deepEqual(result.bits_data.actors.john.toArray(), [1, 2]);*/
-
-    done();
-  })
-
   it('returns facets for two fields (tags, actors)', function test(done) {
 
     var input = {
@@ -81,7 +60,8 @@ describe('conjunctive search', function() {
     assert.deepEqual(result.data.category.comedy, [3]);
 
     var ids = helpers2.facets_ids(result['bits_data_temp'], input, configuration.aggregations);
-    assert.deepEqual(ids.toArray(), [1, 3, 4]);
+    //assert.deepEqual(ids.toArray(), [1, 3, 4]);
+    assert.deepEqual(result.ids.toArray(), [1, 3, 4]);
 
     var buckets = helpers2.getBuckets(result, input, configuration.aggregations);
     //console.log(buckets.tags.buckets);
@@ -123,7 +103,7 @@ describe('conjunctive search', function() {
 
   })
 
-  it('returns facets for empty input', function test(done) {
+  xit('returns facets for empty input', function test(done) {
 
     var input = {
       filters: {
@@ -209,6 +189,7 @@ describe('conjunctive search', function() {
   })
 })
 
+
 describe('disjunctive search', function() {
 
   var configuration = {
@@ -244,29 +225,35 @@ describe('disjunctive search', function() {
     done();
   })
 
-  it('makes disjunction union', function test(done) {
+  it('calculates combination 2', function test(done) {
 
 
-    var facets_bits = {
-      tags: {
-        a: new RoaringBitmap32([1, 2, 3]),
-        b: new RoaringBitmap32([1, 2, 3, 5]),
-        c: new RoaringBitmap32([7, 9])
-      },
-      actors: {
-        jean: new RoaringBitmap32([1, 2, 3])
-      }
-    }
+    var result = facets.load_indexes(input);
 
     var input = {
       filters: {
-        tags: ['a', 'b']
+        tags: ['c']
       }
     }
 
-    var union = helpers2.disjunction_union(facets_bits, input, configuration.aggregations);
-    assert.deepEqual(union.tags.toArray(), [1, 2, 3, 5]);
-    assert.deepEqual(union.actors, undefined);
+    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
+
+    assert.deepEqual(union.tags, null);
+    assert.deepEqual(union.actors.toArray(), [1, 3, 4]);
+    assert.deepEqual(union.category.toArray(), [1, 3, 4]);
+
+
+    var input = {
+      filters: {
+        tags: ['z']
+      }
+    }
+
+    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
+    assert.deepEqual(union.tags, null);
+    assert.deepEqual(union.actors.toArray(), [4]);
+    assert.deepEqual(union.category.toArray(), [4]);
+
 
     var input = {
       filters: {
@@ -274,8 +261,34 @@ describe('disjunctive search', function() {
       }
     }
 
-    var union = helpers2.disjunction_union(facets_bits, input, configuration.aggregations);
-    assert.deepEqual(union.tags.toArray(), [1, 2, 3]);
+    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
+    assert.deepEqual(union.tags, null);
+    assert.deepEqual(union.actors.toArray(), [1, 2, 3, 4]);
+
+    var input = {
+      filters: {
+        tags: ['z', 'f']
+      }
+    }
+
+    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
+    assert.deepEqual(union.tags, null);
+    assert.deepEqual(union.actors.toArray(), [2, 4]);
+    assert.deepEqual(union.category.toArray(), [2, 4]);
+
+
+    var input = {
+      filters: {
+        tags: ['z'],
+        actors: ['jean']
+      }
+    }
+
+    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
+    assert.deepEqual(union.tags.toArray(), [4]);
+    assert.deepEqual(union.actors.toArray(), [4]);
+    assert.deepEqual(union.category.toArray(), [4]);
+
 
     done();
   })
@@ -287,8 +300,6 @@ describe('disjunctive search', function() {
         tags: ['c']
       }
     }
-
-    console.log(facets.configuration())
 
     var result = facets.search(input, {
       test: true
@@ -363,37 +374,121 @@ describe('disjunctive and conjunctive search', function() {
     done();
   })
 
-  it('makes combination', function test(done) {
 
-    var facets_bits = {
-      tags: {
-        a: new RoaringBitmap32([1, 2, 3]),
-        b: new RoaringBitmap32([1, 2, 3, 5]),
-        c: new RoaringBitmap32([7, 9])
-      },
-      category: {
-        drama: new RoaringBitmap32([6, 7, 9]),
-        comedy: new RoaringBitmap32([6, 7, 9])
-      }
-    }
+  it('calculates combination 2', function test(done) {
+
+    var result = facets.load_indexes(input);
 
     var input = {
       filters: {
-        tags: ['a', 'b'],
-        category: ['drama', 'comedy']
+        category: ['comedy']
       }
     }
 
-    var combination = helpers2.combination(facets_bits, input, configuration.aggregations);
-    assert.deepEqual(combination.tags.toArray(), [1, 2, 3]);
+    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
+
+    assert.deepEqual(union.tags.toArray(), [2, 3]);
+    assert.deepEqual(union.actors.toArray(), [2, 3]);
+    assert.deepEqual(union.category, null);
+
+    var input = {
+      filters: {
+        category: ['comedy', 'drama']
+      }
+    }
+
+    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
+
+    assert.deepEqual(union.tags.toArray(), [1, 2, 3, 4]);
+    assert.deepEqual(union.actors.toArray(), [1, 2, 3, 4]);
+    assert.deepEqual(union.category, null);
+
+    var input = {
+      filters: {
+        category: ['comedy'],
+        actors: ['john']
+      }
+    }
+
+    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
+
+    assert.deepEqual(union.tags.toArray(), [2]);
+    assert.deepEqual(union.actors.toArray(), [2]);
+    assert.deepEqual(union.category.toArray(), [1, 2]);
 
 
-    // make sure it's needed
-    assert.deepEqual(combination.category.toArray(), [6, 7, 9]);
+    var input = {
+      filters: {
+        category: ['comedy', 'drama'],
+        actors: ['john']
+      }
+    }
+
+    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
+
+    assert.deepEqual(union.tags.toArray(), [1, 2]);
+    assert.deepEqual(union.actors.toArray(), [1, 2]);
+    assert.deepEqual(union.category.toArray(), [1, 2]);
+
+    var input = {
+      filters: {
+        category: ['comedy', 'drama']
+      }
+    }
+
+    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
+
+    assert.deepEqual(union.tags.toArray(), [1, 2, 3, 4]);
+    assert.deepEqual(union.actors.toArray(), [1, 2, 3, 4]);
+    assert.deepEqual(union.category, null);
+
+
+    var input = {
+      filters: {
+        category: ['comedy', 'drama'],
+        actors: ['john'],
+        tags: ['b']
+      }
+    }
+
+    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
+
+    assert.deepEqual(union.tags.toArray(), [1]);
+    assert.deepEqual(union.actors.toArray(), [1]);
+    assert.deepEqual(union.category.toArray(), [1]);
+
+    var input = {
+      filters: {
+        category: ['drama'],
+        tags: ['c']
+      }
+    }
+
+    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
+
+    assert.deepEqual(union.tags.toArray(), [1, 4]);
+    assert.deepEqual(union.actors.toArray(), [1, 4]);
+    assert.deepEqual(union.category.toArray(), [1, 3, 4]);
+
+    // reverse order of input
+    var input = {
+      filters: {
+        tags: ['c'],
+        category: ['drama'],
+      }
+    }
+
+    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
+
+    assert.deepEqual(union.tags.toArray(), [1, 4]);
+    assert.deepEqual(union.actors.toArray(), [1, 4]);
+    assert.deepEqual(union.category.toArray(), [1, 3, 4]);
+
 
 
     done();
   })
+
 
 
   it('returns facets', function test(done) {
@@ -422,7 +517,7 @@ describe('disjunctive and conjunctive search', function() {
     var input = {
       filters: {
         tags: ['c'],
-        category: ['drama']
+        category: ['drama'],
       }
     }
 
@@ -445,14 +540,6 @@ describe('disjunctive and conjunctive search', function() {
 
   })
 })
-
-
-
-
-
-
-
-
 
 describe('generates facets crossed with query', function() {
 
@@ -540,4 +627,133 @@ describe('generates facets crossed with query', function() {
 
     done();
   })
+})
+
+describe('negative filters', function() {
+
+  var configuration = {
+    aggregations: {
+      tags: {
+        title: 'Tags',
+        conjunction: true,
+      },
+      actors: {
+        title: 'Actors',
+        conjunction: true,
+      },
+      category: {
+        title: 'Category',
+        conjunction: true,
+      }
+    }
+  }
+
+  before(function() {
+    storage.dropDB();
+    facets = new Facets();
+    facets.index({
+      json_object: items,
+      append: false,
+      configuration: configuration
+    });
+  });
+
+  it('excludes filter from search', function test(done) {
+
+    var input = {
+      not_filters: {
+        tags: ['c']
+      }
+    }
+
+    var result = facets.search(input, {
+      test: true
+    });
+
+    assert.deepEqual(result.data.tags.a, [2]);
+    assert.deepEqual(result.data.tags.c, []);
+    assert.deepEqual(result.data.tags.e, [2]);
+    assert.deepEqual(result.data.actors.john, [2]);
+
+    assert.deepEqual(result.not_ids.toArray(), [1, 3, 4]);
+
+    done();
+  })
+
+})
+
+
+describe('small configuration', function() {
+
+  var configuration = {
+    aggregations: {
+      category: {
+        conjunction: false
+      }
+    }
+  }
+
+  before(function() {
+    storage.dropDB();
+    facets = new Facets();
+    facets.index({
+      json_object: items,
+      append: false,
+      configuration: configuration
+    });
+  });
+
+  it('returns facets', function test(done) {
+
+    var input = {
+      filters: {
+        category: ['drama']
+      }
+    }
+
+    var result = facets.search(input, {
+      test: true
+    });
+
+    assert.deepEqual(result.data.category.comedy, [2, 3]);
+
+    done();
+  })
+})
+
+describe('no configuration', function() {
+
+  var configuration = {
+    aggregations: {
+    }
+  }
+
+  before(function() {
+    storage.dropDB();
+    facets = new Facets();
+    facets.index({
+      json_object: items,
+      append: false,
+      configuration: configuration
+    });
+  });
+
+  it('returns facets', function test(done) {
+
+    var input = {
+      filters: {
+      }
+    }
+
+    var result = facets.search(input, {
+      test: true
+    });
+
+    assert.deepEqual(result.data, {});
+    assert.deepEqual(result.ids, null);
+    assert.deepEqual(result.not_ids, null);
+
+    done();
+  })
+
 })
