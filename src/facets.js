@@ -197,7 +197,6 @@ Facets.prototype = {
     var time = new Date().getTime();
     var i = 0;
 
-    // run only if not filters not empty
     _.mapValues(temp_facet['bits_data_temp'], function(values, key) {
       _.mapValues(temp_facet['bits_data_temp'][key], function(facet_indexes, key2) {
 
