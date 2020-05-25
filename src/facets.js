@@ -101,28 +101,11 @@ Facets.prototype = {
     return bitmap;
   },
 
-  /*
-   *
-   * ids is optional only when there is query
-   * @TODO:
-   * add disjunction_fields, conjunction_fields for custom behaviour
-   * add facets_list which only makes computation for specific facets (not all like now)
-   */
-  search: function(input, data) {
-
-    var configuration = this.configuration();
-    var config = configuration.aggregations;
-
-    if (!config) {
-      throw new Error('Not found configuration for faceted search');
-    }
-
-    data = data || {};
+  load_indexes: function() {
 
     /**
      * get facets from file memory db
      */
-
     var temp_facet = {
       bits_data_temp: {},
       data: {}
@@ -154,12 +137,47 @@ Facets.prototype = {
     console.log(`load indexes from db + parsing: ${new Date().getTime() - time}`);
     console.log(`calculation will be done for: ${Object.keys(indexes).length} indexes`);
 
+    return temp_facet;
+  },
+
+
+  /*
+   *
+   * ids is optional only when there is query
+   * @TODO:
+   * add disjunction_fields, conjunction_fields for custom behaviour
+   * add facets_list which only makes computation for specific facets (not all like now)
+   */
+  search: function(input, data) {
+
+    var configuration = this.configuration();
+    var config = configuration.aggregations;
+
+    if (!config) {
+      throw new Error('Not found configuration for faceted search');
+    }
+
+    data = data || {};
+
+    var temp_facet = this.load_indexes();
+
 
     var time = new Date().getTime();
     var union = helpers2.disjunction_union(temp_facet['bits_data_temp'], input, config);
     time = new Date().getTime() - time;
     console.log('disjunction: ' + time);
 
+    var time = new Date().getTime();
+    var disjunction2 = helpers2.disjunction2(temp_facet['bits_data_temp'], input, config);
+    time = new Date().getTime() - time;
+    console.log('disjunction2: ' + time);
+
+    // -------------------------------
+    var time = new Date().getTime();
+    var intersection_all = helpers2.intersection_all(temp_facet['bits_data_temp'], input, config);
+    time = new Date().getTime() - time;
+    console.log('intersection all: ' + time);
+    // -------------------------------
 
 
     // -------------------------------
@@ -200,6 +218,7 @@ Facets.prototype = {
     var time = new Date().getTime();
     var i = 0;
 
+    // run only if not filters not empty
     _.mapValues(temp_facet['bits_data_temp'], function(values, key) {
       _.mapValues(temp_facet['bits_data_temp'][key], function(facet_indexes, key2) {
 
@@ -224,66 +243,20 @@ Facets.prototype = {
     var filters_indexes = {};
 
     var i = 0 ;
-    // input_key tags, couriers
-    // input_values real filters
-    _.mapValues(input.filters, function(filters, field) {
 
-      _.mapValues(filters, filter => {
-      //filters.forEach(filter => {
-      // filter - John, Arnold, Jean etc.
+    _.mapValues(temp_facet['bits_data_temp'], function(values, key) {
+      _.mapValues(temp_facet['bits_data_temp'][key], function(facet_indexes, key2) {
 
+        var result;
 
-
-        // [1, 2, 3, 5, etc]
-        var filter_indexes = temp_facet['bits_data_temp'][field][filter];
-
-        // its 80ms slower
-        //temp_facet['data'][field][filter] = helpers2.intersection(filter_indexes, query_ids);
-
-        //console.log(filter_indexes)
-
-        // if the filter does not exist then intersection is []
-        if (!filter_indexes) {
-          return [];
+        if (disjunction2[key]) {
+          result = RoaringBitmap32.and(facet_indexes, disjunction2[key]);
+          ++i;
         }
 
-        if (!temp_facet['bits_data_temp'][field]) {
-          return;
+        if (result) {
+          temp_facet['bits_data_temp'][key][key2] = result;
         }
-
-        _.mapValues(temp_facet['bits_data_temp'], function(values, key) {
-          // values indexes of specific facet
-          // key couriers, psp, actors, tags
-
-          //temp_facet['bits_data'][key] = _.mapValues(temp_facet['bits_data'][key], function(facet_indexes, key2) {
-          _.mapValues(temp_facet['bits_data_temp'][key], function(facet_indexes, key2) {
-
-            var result;
-
-            var cond = 0;
-            if (config[key].conjunction === false && field === key) {
-              result = facet_indexes;
-              cond = 1;
-            } else if (config[field].conjunction === false && field !== key) {
-              result = RoaringBitmap32.and(facet_indexes, union[field]);
-              ++i;
-              cond = 2;
-            } else if (config[key].conjunction === false && field !== key) {
-              // it's new and it's gonna work
-              result = RoaringBitmap32.and(facet_indexes, combination[field]);
-              ++i;
-              //result = facet_indexes.andInPlace(combination[field]);
-              cond = 3;
-            } else {
-              result = RoaringBitmap32.and(filter_indexes, facet_indexes);
-              ++i;
-              //result = facet_indexes.andInPlace(filter_indexes);
-              cond = 4;
-            }
-
-            temp_facet['bits_data_temp'][key][key2] = result;
-          })
-        })
       })
     })
 

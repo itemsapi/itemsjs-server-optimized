@@ -182,7 +182,7 @@ const findex = function(items, config) {
           facets['bits_data'][field] = {};
         }
 
-        console.log(indexes);
+        //console.log(indexes);
 
         facets['bits_data'][field][key] = new FastBitSet(indexes);
       })*/
@@ -251,6 +251,129 @@ const combination = function(facets_data, input, config) {
   return output;
 }
 
+/**
+ * intersection for each filter indexes
+ */
+
+const intersection_all = function(facets_data, input, config) {
+
+  var output = null;
+
+  _.mapValues(input.filters, function(filters, field) {
+
+    filters.forEach(filter => {
+
+      if (!output) {
+        output = new RoaringBitmap32(facets_data[field][filter]);
+      } else if (facets_data[field][filter]) {
+        output = RoaringBitmap32.and(output, facets_data[field][filter]);
+      }
+    })
+  })
+
+  return output;
+}
+
+
+const disjunction2 = function(facets_data, input, config) {
+
+  var output = {};
+
+  var filters_array = _.map(input.filters, function(filter, key) {
+    return {
+      key: key,
+      values: filter,
+      conjunction: config[key].conjunction !== false,
+    }
+  })
+
+  filters_array.sort(function(a, b) {
+    return a.conjunction > b.conjunction ? 1 : -1;
+  })
+
+  //console.log('------------------------------------------------------------------');
+  //console.log('start disjunction 2');
+  //console.log('------------------------------------------------------------------');
+
+  //console.log(filters_array);
+  //console.log(input.filters);
+
+  _.mapValues(facets_data, function(values, key) {
+
+    // it's only for disjunctive filters
+    /*if (config[key].conjunction !== false) {
+      return;
+    }*/
+
+    // to delete
+    if (!output[key]) {
+      output[key] = null;
+    }
+
+    //_.mapValues(input.filters, function(filters, field) {
+    _.map(filters_array, function(object) {
+
+      var filters = object.values;
+      var field = object.key;
+
+      //console.log('-----------------: ', key, field);
+      //console.log(output[key]);
+
+      filters.forEach(filter => {
+
+        var result;
+
+
+
+        // calc for disjunctive filters
+        if (config[key].conjunction === false) {
+
+          if (key !== field) {
+
+            if (!output[key]) {
+              result = facets_data[field][filter];
+            } else {
+              if (config[field].conjunction !== false) {
+                result = RoaringBitmap32.and(output[key], facets_data[field][filter]);
+              } else {
+                result = RoaringBitmap32.or(output[key], facets_data[field][filter]);
+              }
+            }
+          }
+          // calc for conjunctive filters
+        } else if (config[key].conjunction !== false) {
+
+          if (!output[key]) {
+            result = facets_data[field][filter];
+          } else {
+
+            if (config[field].conjunction !== false) {
+              result = RoaringBitmap32.and(output[key], facets_data[field][filter]);
+            } else {
+              result = RoaringBitmap32.or(output[key], facets_data[field][filter]);
+            }
+          }
+        }
+
+        if (result) {
+          //console.log('result size: ', result.size);
+          //console.log(result.toArray());
+        } else {
+          //console.log('no result');
+        }
+
+        if (result) {
+          output[key] = result;
+        }
+      })
+    })
+  })
+
+  //return new RoaringBitmap32(output);
+  return output;
+}
+
+
 const disjunction_union = function(facets_data, input, config) {
 
   var output = {};
@@ -289,8 +412,8 @@ const disjunction_union = function(facets_data, input, config) {
  */
 const not_ids = function(facets_data, input, config) {
 
-  console.log(facets_data)
-  console.log(input)
+  //console.log(facets_data)
+  //console.log(input)
 
   var output = new RoaringBitmap32([]);
   var i = 0;
@@ -298,7 +421,7 @@ const not_ids = function(facets_data, input, config) {
 
     filters.forEach(filter => {
 
-      console.log(facets_data[field][filter])
+      //console.log(facets_data[field][filter])
 
 
       ++i;
@@ -422,7 +545,9 @@ module.exports.intersection = intersection2;
 module.exports.facets_ids = ids;
 module.exports.facets_not_ids = not_ids;
 module.exports.disjunction_union = disjunction_union;
+module.exports.disjunction2 = disjunction2;
 module.exports.combination = combination;
+module.exports.intersection_all = intersection_all;
 module.exports.index = findex;
 module.exports.getBuckets = getBuckets;
 module.exports.getFacets = getBuckets;
