@@ -414,7 +414,8 @@ const parse_filter_key = function(key) {
 
 
 module.exports.mergeAggregations = mergeAggregations;
-module.exports.parse_filter_key = parse_filter_key;.exports.uniq_merge_sorted_arrays = uniq_merge_sorted_arrays;
+module.exports.parse_filter_key = parse_filter_key;
+exports.uniq_merge_sorted_arrays = uniq_merge_sorted_arrays;
 module.exports.facets_intersection = facets_intersection;
 //module.exports.intersection = intersection;
 module.exports.intersection = intersection2;
