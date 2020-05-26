@@ -12,6 +12,7 @@ const addon = require('bindings')('itemsjs_addon.node');
  */
 var Facets = function() {
   this.config = {};
+  this.indexes_cache;
 };
 
 Facets.prototype = {
@@ -158,6 +159,7 @@ Facets.prototype = {
     }
 
     data = data || {};
+    input = input || {};
 
     var temp_facet = this.load_indexes();
 
@@ -166,28 +168,27 @@ Facets.prototype = {
     time = new Date().getTime() - time;
     console.log('combination: ' + time);
 
+    // -------------------------------
+    // cross combination with query ids
+    var time = new Date().getTime();
+    if (data.query_ids) {
+
+      _.mapValues(temp_facet['bits_data_temp'], function(values, key) {
+        if (!combination[key]) {
+          combination[key] = data.query_ids;
+        } else {
+          combination[key] = RoaringBitmap32.and(combination[key], data.query_ids);
+        }
+      })
+    }
+    time = new Date().getTime() - time;
+    console.log('cross query ids with combination: ' + time);
+    // -------------------------------
+
     /**
      * calculating not ids
      */
-    var not_ids = new RoaringBitmap32([]);
-    // consider removing "i" and returns only bitmap even if empty
-    var i = 0;
-
-    _.mapValues(input.not_filters, function(filters, field) {
-
-      filters.forEach(filter => {
-
-        ++i;
-        not_ids = RoaringBitmap32.or(not_ids, temp_facet['bits_data_temp'][field][filter]);
-      })
-    })
-
-    if (i === 0) {
-      not_ids = null;
-    }
-
-    temp_facet.not_ids = not_ids;
-
+    temp_facet.not_ids = helpers2.facets_ids(temp_facet['bits_data_temp'], input.not_filters, config);
 
     /**
      * not filters calculations
@@ -197,6 +198,8 @@ Facets.prototype = {
     var time = new Date().getTime();
     var i = 0;
 
+    // @TODO it can be improved with crossing only combinations
+    // not crossing all filters is required
     _.mapValues(temp_facet['bits_data_temp'], function(values, key) {
       _.mapValues(temp_facet['bits_data_temp'][key], function(facet_indexes, key2) {
 
@@ -218,22 +221,14 @@ Facets.prototype = {
 
     // -------------------------------
     var time = new Date().getTime();
-    var filters_indexes = {};
-
     var i = 0 ;
 
     _.mapValues(temp_facet['bits_data_temp'], function(values, key) {
       _.mapValues(temp_facet['bits_data_temp'][key], function(facet_indexes, key2) {
 
-        var result;
-
         if (combination[key]) {
-          result = RoaringBitmap32.and(facet_indexes, combination[key]);
+          temp_facet['bits_data_temp'][key][key2] = RoaringBitmap32.and(facet_indexes, combination[key]);
           ++i;
-        }
-
-        if (result) {
-          temp_facet['bits_data_temp'][key][key2] = result;
         }
       })
     })
@@ -248,41 +243,20 @@ Facets.prototype = {
     _.mapValues(temp_facet['bits_data_temp'], function(values, key) {
       _.mapValues(temp_facet['bits_data_temp'][key], function(facet_indexes, key2) {
 
-        if (data.query_ids) {
-          temp_facet['bits_data_temp'][key][key2] = RoaringBitmap32.and(temp_facet['bits_data_temp'][key][key2], data.query_ids);
-        }
-
         if (data.test) {
           temp_facet['data'][key][key2] = temp_facet['bits_data_temp'][key][key2].toArray();
         }
       })
     })
+
     time = new Date().getTime() - time;
     console.log('copying data  from bits_data_temp to data object: ' + time);
     // -------------------------------
 
-
     /**
      * calculating ids
      */
-    var ids = new RoaringBitmap32([]);
-    // consider removing "i" and returns only bitmap even if empty
-    var i = 0;
-
-    _.mapValues(input.filters, function(filters, field) {
-
-      filters.forEach(filter => {
-
-        ++i;
-        ids = RoaringBitmap32.or(ids, temp_facet['bits_data_temp'][field][filter]);
-      })
-    })
-
-    if (i === 0) {
-      ids = null;
-    }
-
-    temp_facet.ids = ids;
+    temp_facet.ids = helpers2.facets_ids(temp_facet['bits_data_temp'], input.filters, config);
 
     return temp_facet;
   }

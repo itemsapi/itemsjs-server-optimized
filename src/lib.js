@@ -69,11 +69,11 @@ module.exports.search = function(input, configuration, facets) {
   var filtered_indexes_bitmap = _ids_bitmap;
 
   if (facet_result.ids) {
-    filtered_indexes_bitmap = RoaringBitmap32.and(_ids_bitmap, facet_result.ids);
+    filtered_indexes_bitmap = RoaringBitmap32.and(filtered_indexes_bitmap, facet_result.ids);
   }
 
   if (facet_result.not_ids) {
-    filtered_indexes_bitmap = RoaringBitmap32.andNot(_ids_bitmap, facet_result.not_ids);
+    filtered_indexes_bitmap = RoaringBitmap32.andNot(filtered_indexes_bitmap, facet_result.not_ids);
   }
 
   var new_items_indexes;

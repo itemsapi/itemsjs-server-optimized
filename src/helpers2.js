@@ -224,6 +224,10 @@ const findex = function(items, config) {
   return facets;
 }
 
+
+/**
+ * it calculates new indexes for each facet group
+ */
 const combination = function(facets_data, input, config) {
 
   var output = {};
@@ -240,19 +244,9 @@ const combination = function(facets_data, input, config) {
     return a.conjunction > b.conjunction ? 1 : -1;
   })
 
-  //console.log('------------------------------------------------------------------');
-  //console.log('start disjunction 2');
-  //console.log('------------------------------------------------------------------');
-
-  //console.log(filters_array);
-  //console.log(input.filters);
-
+  // @TODO we could forEach here only by list of keys
+  // @TODO we don't need full  facets_data. filters_data should be enough
   _.mapValues(facets_data, function(values, key) {
-
-    // to delete
-    //if (!output[key]) {
-      //output[key] = null;
-    //}
 
     _.map(filters_array, function(object) {
 
@@ -321,46 +315,16 @@ const disjunction_union = function(facets_data, input, config) {
 }
 
 /**
- * calculcates not ids for facets
- */
-const not_ids = function(facets_data, input, config) {
-
-  //console.log(facets_data)
-  //console.log(input)
-
-  var output = new RoaringBitmap32([]);
-  var i = 0;
-  _.mapValues(input.not_filters, function(filters, field) {
-
-    filters.forEach(filter => {
-
-      //console.log(facets_data[field][filter])
-
-
-      ++i;
-      output = RoaringBitmap32.or(output, facets_data[field][filter]);
-    })
-  })
-
-  if (i === 0) {
-    return null;
-  }
-
-  return output;
-
-}
-
-/**
  * calculates ids for facets
  * if there is no facet input then return null to not save resources for OR calculation
  * null means facets haven't crossed searched items
  */
-const ids = function(facets_data, input, config) {
+const ids = function(facets_data, filters, config) {
 
   var output = new RoaringBitmap32([]);
   var i = 0;
 
-  _.mapValues(input.filters, function(filters, field) {
+  _.mapValues(filters, function(filters, field) {
 
     filters.forEach(filter => {
 
@@ -452,15 +416,9 @@ const parse_filter_key = function(key) {
 module.exports.mergeAggregations = mergeAggregations;
 module.exports.parse_filter_key = parse_filter_key;
 exports.uniq_merge_sorted_arrays = uniq_merge_sorted_arrays;
-module.exports.facets_intersection = facets_intersection;
-//module.exports.intersection = intersection;
 module.exports.intersection = intersection2;
 module.exports.facets_ids = ids;
-module.exports.facets_not_ids = not_ids;
-//module.exports.disjunction_union = disjunction_union;
 module.exports.combination = combination;
-//module.exports.combination = combination;
-//module.exports.intersection_all = intersection_all;
 module.exports.index = findex;
 module.exports.getBuckets = getBuckets;
 module.exports.getFacets = getBuckets;

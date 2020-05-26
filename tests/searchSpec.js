@@ -65,9 +65,35 @@ describe('search', function() {
     });
 
     assert.equal(result.data.items.length, 2);
+    assert.equal(result.data.aggregations.tags.buckets[0].doc_count, 2);
 
     done();
   })
+
+  it('searches with filter and query', function test(done) {
+
+
+    itemsjs.index({
+      json_object: items,
+      append: false,
+      configuration: configuration
+    });
+
+    var result = itemsjs.search({
+      filters: {
+        tags: ['a'],
+      },
+      query: 'comedy'
+    });
+
+    assert.equal(result.data.items.length, 2);
+    assert.equal(result.data.aggregations.tags.buckets[0].doc_count, 2);
+    assert.equal(result.data.aggregations.category.buckets[0].key, 'comedy');
+    assert.equal(result.data.aggregations.category.buckets[0].doc_count, 2);
+
+    done();
+  })
+
 
   it('makes search with empty filters', function test(done) {
 

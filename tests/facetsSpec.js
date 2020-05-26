@@ -59,7 +59,7 @@ describe('conjunctive search', function() {
     assert.deepEqual(result.data.actors.john, [1]);
     assert.deepEqual(result.data.category.comedy, [3]);
 
-    var ids = helpers2.facets_ids(result['bits_data_temp'], input, configuration.aggregations);
+    var ids = helpers2.facets_ids(result['bits_data_temp'], input.filters, configuration.aggregations);
     //assert.deepEqual(ids.toArray(), [1, 3, 4]);
     assert.deepEqual(result.ids.toArray(), [1, 3, 4]);
 
@@ -533,7 +533,7 @@ describe('disjunctive and conjunctive search', function() {
     assert.deepEqual(result.data.category.comedy, [3]);
     assert.deepEqual(result.data.category.drama, [1, 4]);
 
-    var ids = helpers2.facets_ids(result['bits_data_temp'], input, configuration.aggregations);
+    var ids = helpers2.facets_ids(result['bits_data_temp'], input.filters, configuration.aggregations);
     assert.deepEqual(ids.toArray(), [1, 4]);
 
     done();
