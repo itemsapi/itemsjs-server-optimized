@@ -380,8 +380,7 @@ const getBuckets = function(data, input, aggregations) {
 
       return {
         key: v2[0],
-        //doc_count: v2[1].length,
-        doc_count: v2[1] && v2[1].size ? v2[1].size : v2[1],
+        doc_count: Number.isInteger(v2[1]) ? v2[1] : v2[1].size,
         selected: filters.indexOf(v2[0]) !== -1
       }
     })
