@@ -16,7 +16,6 @@
 //#include <experimental/filesystem>
 //namespace fs = std::experimental::filesystem;
 
-using namespace simdjson;
 using namespace std;
 
 std::string itemsjs::hello(){
@@ -35,7 +34,7 @@ std::string itemsjs::json_at(string json_path, int i) {
 
   items = parser.load(json_path);
 
-  dom::element first = items.at(i);
+  simdjson::dom::element first = items.at(i);
   //std::cout << first << std::endl;
   string sv = simdjson::minify(first);
   return sv;
@@ -45,14 +44,15 @@ std::string itemsjs::json_at(string json_path, int i) {
  * native version of faceted search
  * it's gonna be 2,3x faster and have low RAM consumption
  */
-std::tuple<std::string, std::optional<Roaring>> itemsjs::search_facets(nlohmann::json input, nlohmann::json filters_array, nlohmann::json config, std::optional<Roaring> query_ids) {
-
-  std::map<string, std::map<string, Roaring>> filters_indexes;
-  std::map<string, Roaring> combination;
-  nlohmann::json output;
-  std::optional<Roaring> ids;
+std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs::search_facets(nlohmann::json input, nlohmann::json filters_array, nlohmann::json config, std::optional<Roaring> query_ids) {
 
   cout << "start searching facets in native cpp" << endl;
+
+  // @TODO make unordered
+  std::map<string, std::map<string, Roaring>> filters_indexes;
+  std::map<string, std::map<string, Roaring>> not_filters_indexes;
+  std::map<string, Roaring> combination;
+  nlohmann::json output;
 
   auto env = lmdb::env::create();
   env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL);
@@ -71,7 +71,7 @@ std::tuple<std::string, std::optional<Roaring>> itemsjs::search_facets(nlohmann:
   // fetch filters indexes
   // TODO replace input with filters array
   for (auto& [field, filters] : input["filters"].items()) {
-    for (auto& [filter_key, filter] : filters.items()) {
+    for (auto& filter : filters) {
 
       std::string_view ids_bytes;
 
@@ -88,6 +88,25 @@ std::tuple<std::string, std::optional<Roaring>> itemsjs::search_facets(nlohmann:
     }
   }
 
+
+  for (auto& [field, filters] : input["not_filters"].items()) {
+    for (auto& filter : filters) {
+
+      std::string_view ids_bytes;
+
+      std::string sv(field);
+      std::string sv2(filter);
+      string name = sv + "." + sv2;
+
+      if (dbi.get(rtxn, name, ids_bytes)) {
+        Roaring ids = Roaring::read(ids_bytes.data());
+        not_filters_indexes[sv][sv2] = ids;
+      }
+    }
+  }
+
+
+  // @TODO get these data from argument
   nlohmann::json facets_fields = {"tags", "actors", "category"};
 
   for (auto& name: facets_fields) {
@@ -133,8 +152,34 @@ std::tuple<std::string, std::optional<Roaring>> itemsjs::search_facets(nlohmann:
     }
   }
 
+
+  std::optional<Roaring> not_ids;
+  Roaring temp_not_ids;
+  bool checked = false;
+  for (auto& [field, filters] : input["not_filters"].items()) {
+    for (auto& filter : filters) {
+
+      std::string sv(field);
+      std::string sv2(filter);
+
+      //cout << field << " " << filter << endl;
+      //cout << "not filtes petla" << endl;
+      temp_not_ids |= not_filters_indexes[sv][sv2];
+      checked = true;
+    }
+  }
+
+  //cout << "not ids" << endl;
+  //cout << temp_not_ids.cardinality() << endl;
+
+  if (checked) {
+    not_ids = temp_not_ids;
+  }
+
+
   // intersection in native cpp is 2.5 x faster than in js
   auto start = std::chrono::high_resolution_clock::now();
+
   while (cursor.get(key, value, MDB_NEXT)) {
 
     Roaring ids = Roaring::read(value.data());
@@ -147,12 +192,30 @@ std::tuple<std::string, std::optional<Roaring>> itemsjs::search_facets(nlohmann:
     std::string sv(key1);
     std::string sv2(key2);
 
+    // negative filters
+    if (not_ids) {
+      ids -= not_ids.value();
+    }
+
     if (combination.count(sv)) {
       ids &= combination[sv];
+
+      // for calculating ids later
+      if (filters_indexes.count(sv) and filters_indexes[sv].count(sv2)) {
+        //filters_indexes[sv][sv2] &= combination[sv];
+        filters_indexes[sv][sv2] &= ids;
+        //cout << "combination" << endl;
+        //cout << input.dump() << endl;
+        //// calculating ids
+        //temp_ids |= ids;
+        //checked = true;
+      }
     }
+
 
     output[sv][sv2] = ids.cardinality();
   }
+
 
   auto elapsed = std::chrono::high_resolution_clock::now() - start;
   std::cout << "facets search time: " << elapsed.count() / 1000000<< std::endl;
@@ -162,7 +225,28 @@ std::tuple<std::string, std::optional<Roaring>> itemsjs::search_facets(nlohmann:
   rtxn.abort();
   env.close();
 
-  return {output.dump(), ids};
+  std::optional<Roaring> ids;
+  Roaring temp_ids;
+  checked = false;
+  for (auto& [field, filters] : input["filters"].items()) {
+    for (auto& filter : filters) {
+
+      std::string sv(field);
+      std::string sv2(filter);
+
+      cout << field << " " << filter << endl;
+
+      temp_ids |= filters_indexes[sv][sv2];
+      checked = true;
+    }
+  }
+
+  if (checked) {
+    ids = temp_ids;
+  }
+
+
+  return {output.dump(), ids, not_ids};
 }
 
 std::vector<int> lista;
@@ -247,7 +331,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   start = std::chrono::high_resolution_clock::now();
 
   int id = starting_id;
-  for (dom::element item : items) {
+  for (simdjson::dom::element item : items) {
 
     string ok = "";
 
@@ -283,7 +367,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   start = std::chrono::high_resolution_clock::now();
 
   id = starting_id;
-  for (dom::object item : items) {
+  for (simdjson::dom::object item : items) {
 
     for (auto [key, value] : item) {
 
@@ -292,7 +376,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
        */
       for(auto field : faceted_fields) {
 
-        if (key == field and value.type() == dom::element_type::ARRAY) {
+        if (key == field and value.type() == simdjson::dom::element_type::ARRAY) {
 
           for (auto filter : value) {
 
@@ -301,7 +385,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
           }
         }
 
-        else if (key == field and value.type() == dom::element_type::INT64) {
+        else if (key == field and value.type() == simdjson::dom::element_type::INT64) {
 
           string year(to_string(int64_t(value)));
           char *char_array = new char [year.length()];
@@ -313,7 +397,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
           //delete char_array;
         }
 
-        else if (key == field and value.type() == dom::element_type::STRING) {
+        else if (key == field and value.type() == simdjson::dom::element_type::STRING) {
 
           string_view filter (value);
           facets3[key][filter].push_back(id);
@@ -401,18 +485,18 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
    * full text indexing
    */
   id = starting_id;
-  for (dom::object item : items) {
+  for (simdjson::dom::object item : items) {
 
     for (auto [key, value] : item) {
 
 
-      if (value.type() == dom::element_type::ARRAY) {
+      if (value.type() == simdjson::dom::element_type::ARRAY) {
 
         for (auto filter : value) {
 
           //cout << filter.type() << endl;
 
-          if (filter.type() == dom::element_type::STRING) {
+          if (filter.type() == simdjson::dom::element_type::STRING) {
 
             string_view filter2 (filter);
             tokenizer tok{filter2};
@@ -429,7 +513,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
         }
       }
 
-      else if (value.type() == dom::element_type::STRING) {
+      else if (value.type() == simdjson::dom::element_type::STRING) {
 
         string_view filter (value);
 
@@ -571,29 +655,36 @@ Napi::Object itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {
     query_ids = Roaring::read(buffer.Data());
   }
 
-  Roaring test;
-  test.add(1);
-  test.add(10);
-
-  int expectedsize = test.getSizeInBytes();
-  char *serializedbytes = new char [expectedsize];
-  test.write(serializedbytes);
-  std::string_view nowy(serializedbytes, expectedsize);
-
-  // no idea yet how to use finalizer to free memory
-  //Napi::Buffer<char> buffer2 = Napi::Buffer<char>::New(env, (char *)nowy.data(), nowy.length(), [](Env [>env<], uint16_t* finalizeData) {
-    //delete[] finalizeData;
-  //});
-
-  // bit slowier because copy but no leak
-  Napi::Buffer<char> buffer3 = Napi::Buffer<char>::Copy(env, nowy.data(), nowy.length());
-  delete serializedbytes;
-
-  obj.Set("ids", buffer3);
-
   //nlohmann::json result;
-  auto [result, ids] = itemsjs::search_facets(input, filters_array, conf, query_ids);
+  auto [result, ids, not_ids] = itemsjs::search_facets(input, filters_array, conf, query_ids);
   obj.Set("facets", result);
+
+  if (ids) {
+
+    int expectedsize = ids.value().getSizeInBytes();
+    char *serializedbytes = new char [expectedsize];
+    ids.value().write(serializedbytes);
+    std::string_view nowy(serializedbytes, expectedsize);
+
+    // bit slowier than "new" because copy but at least no leak
+    Napi::Buffer<char> buffer3 = Napi::Buffer<char>::Copy(env, nowy.data(), nowy.length());
+    delete serializedbytes;
+    obj.Set("ids", buffer3);
+  }
+
+  // this can be removed
+  if (not_ids) {
+
+    int expectedsize = not_ids.value().getSizeInBytes();
+    char *serializedbytes = new char [expectedsize];
+    not_ids.value().write(serializedbytes);
+    std::string_view nowy(serializedbytes, expectedsize);
+
+    // bit slowier than "new" because copy but at least no leak
+    Napi::Buffer<char> buffer3 = Napi::Buffer<char>::Copy(env, nowy.data(), nowy.length());
+    delete serializedbytes;
+    obj.Set("not_ids", buffer3);
+  }
 
   return obj;
 }

@@ -176,9 +176,14 @@ Facets.prototype = {
     //console.log(aha);
     //console.log(aha.toArray());
 
+    var ids = result.ids ? RoaringBitmap32.deserialize(result.ids, true) : null
+    // @TODO abandon it
+    var not_ids = result.not_ids ? RoaringBitmap32.deserialize(result.not_ids, true) : null
+
     return {
       bits_data_temp: JSON.parse(result.facets),
-      ids: null
+      ids: ids,
+      not_ids: not_ids
     }
   },
 
@@ -201,11 +206,11 @@ Facets.prototype = {
     data = data || {};
     input = input || {};
 
-    var time = new Date().getTime();
-    console.log(`------------- search facets from addon: ${new Date().getTime() - time}`);
-    var result = this.search_native(input);
+    //var time = new Date().getTime();
+    //console.log(`------------- search facets from addon: ${new Date().getTime() - time}`);
+    //var result = this.search_native(input);
     //var f = JSON.parse(result.facets);
-    console.log(`------------- search facets from addon + parse: ${new Date().getTime() - time}`);
+    //console.log(`------------- search facets from addon + parse: ${new Date().getTime() - time}`);
 
     var temp_facet = this.load_indexes();
 

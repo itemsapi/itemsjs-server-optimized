@@ -12,10 +12,18 @@ var facets;
 
 var assert_results = function(data1, data2) {
 
-  /*assert.deepEqual(
+  assert.deepEqual(
     data1['ids'],
     data2['ids']
-  );*/
+  );
+
+  assert.deepEqual(
+    data1['not_ids'],
+    data2['not_ids']
+  );
+
+  console.log(data1['bits_data_temp'])
+  console.log(data2['bits_data_temp'])
 
   Object.keys(data1['bits_data_temp']).forEach(field => {
     Object.keys(data1['bits_data_temp'][field]).forEach((filter) => {
@@ -123,6 +131,9 @@ describe('conjunctive search', function() {
 
     var result = facets.search(input);
     var nresult = facets.search_native(input);
+
+    console.log(nresult);
+
     assert_results(result, nresult);
 
     done();
@@ -338,7 +349,7 @@ describe('negative filters', function() {
     });
   });
 
-  xit('excludes filter from search', function test(done) {
+  it('excludes filter from search', function test(done) {
 
     var input = {
       not_filters: {
