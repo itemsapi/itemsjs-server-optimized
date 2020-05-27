@@ -42,11 +42,19 @@ module.exports.search = function(input, configuration, facets) {
   /**
    * new facet search also by using sort
    */
+  var facet_result;
+  if (input.search_native) {
+    facet_result = facets.search_native(input, {
+      query_ids: query_ids
+    });
+  } else {
+    facet_result = facets.search(input, {
+      query_ids: query_ids
+    });
+  }
 
-  var facet_result = facets.search(input, {
-    query_ids: query_ids
-  });
 
+  //console.log(facet_result);
 
   console.log('finished facets');
 
