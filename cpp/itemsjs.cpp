@@ -4,7 +4,7 @@
 #include "roaring.c"
 #include <chrono>
 #include <string>
-#include <sstream>
+//#include <sstream>
 #include "simdjson.h"
 #include <bits/stdc++.h>
 #include "lmdb2++.h"
@@ -43,8 +43,9 @@ std::string itemsjs::json_at(string json_path, int i) {
 /**
  * native version of faceted search
  * it's gonna be 2,3x faster and have low RAM consumption
+ * @TODO
  */
-std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs::search_facets(nlohmann::json input, nlohmann::json filters_array, nlohmann::json config, std::optional<Roaring> query_ids) {
+std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs::search_facets(nlohmann::json input, nlohmann::json filters_array, nlohmann::json config, nlohmann::json facets_fields, std::optional<Roaring> query_ids) {
 
   cout << "start searching facets in native cpp" << endl;
 
@@ -81,13 +82,12 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
 
       if (dbi.get(rtxn, name, ids_bytes)) {
         Roaring ids = Roaring::read(ids_bytes.data());
-        cout << "filter indexes: " << sv << " " << sv2 << " " << ids.cardinality() << endl;
+        //cout << "filter indexes: " << sv << " " << sv2 << " " << ids.cardinality() << endl;
         filters_indexes[sv][sv2] = ids;
         //filter_indexes = ids;
       }
     }
   }
-
 
   for (auto& [field, filters] : input["not_filters"].items()) {
     for (auto& filter : filters) {
@@ -105,9 +105,6 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
     }
   }
 
-
-  // @TODO get these data from argument
-  nlohmann::json facets_fields = {"tags", "actors", "category"};
 
   for (auto& name: facets_fields) {
 
@@ -234,7 +231,7 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
       std::string sv(field);
       std::string sv2(filter);
 
-      cout << field << " " << filter << endl;
+      //cout << field << " " << filter << endl;
 
       temp_ids |= filters_indexes[sv][sv2];
       checked = true;
@@ -302,7 +299,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
     }
   }
 
-  cout << "starting id: " << starting_id << endl;
+  //cout << "starting id: " << starting_id << endl;
 
 
 
@@ -641,22 +638,27 @@ Napi::Object itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {
   string conf_string = stringify.Call(json, { third }).As<Napi::String>();
   nlohmann::json conf = nlohmann::json::parse(conf_string);
 
+  Napi::Object forth = info[3].As<Napi::Object>();
+  string facets_fields_string = stringify.Call(json, { forth }).As<Napi::String>();
+
+  nlohmann::json facets_fields = nlohmann::json::parse(facets_fields_string);
+
   // buffers
   // https://github.com/nodejs/node-addon-api/blob/master/doc/buffer.md
   // https://github.com/nodejs/node-addon-api/issues/405
-  Napi::Value forth = info[3];
+  Napi::Value fifth = info[4];
 
   std::optional<Roaring> query_ids;
 
   Napi::Object obj = Napi::Object::New(env);
 
-  if (!forth.IsNull()) {
-    Napi::Buffer<char> buffer = info[3].As<Napi::Buffer<char>>();
+  if (!fifth.IsNull()) {
+    Napi::Buffer<char> buffer = info[4].As<Napi::Buffer<char>>();
     query_ids = Roaring::read(buffer.Data());
   }
 
   //nlohmann::json result;
-  auto [result, ids, not_ids] = itemsjs::search_facets(input, filters_array, conf, query_ids);
+  auto [result, ids, not_ids] = itemsjs::search_facets(input, filters_array, conf, facets_fields, query_ids);
   obj.Set("facets", result);
 
   if (ids) {

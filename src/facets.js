@@ -169,12 +169,10 @@ Facets.prototype = {
 
     //var query_ids = new RoaringBitmap32([1, 2]).serialize(true);
     //var result = addon.search_facets(input, filters_array, config, Buffer.from('this is a tést'));
-    var result = addon.search_facets(input, filters_array, config, query_ids);
+    var result = addon.search_facets(input, filters_array, config, _.keys(config), query_ids);
 
     //console.log(result);
     //var aha = RoaringBitmap32.deserialize(result.ids, true);
-    //console.log(aha);
-    //console.log(aha.toArray());
 
     var ids = result.ids ? RoaringBitmap32.deserialize(result.ids, true) : null
     // @TODO abandon it
@@ -205,12 +203,6 @@ Facets.prototype = {
 
     data = data || {};
     input = input || {};
-
-    //var time = new Date().getTime();
-    //console.log(`------------- search facets from addon: ${new Date().getTime() - time}`);
-    //var result = this.search_native(input);
-    //var f = JSON.parse(result.facets);
-    //console.log(`------------- search facets from addon + parse: ${new Date().getTime() - time}`);
 
     var temp_facet = this.load_indexes();
 
