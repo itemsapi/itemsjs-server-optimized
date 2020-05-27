@@ -42,23 +42,17 @@ std::string itemsjs::json_at(string json_path, int i) {
 }
 
 /**
- * creating string instead of string_view is very slow here
- * calculating roaring seems to be 30% right now
- * there is no big difference in string vs string_view though
- * the most time is taking lookup data and deserialization from lmdb
- * it's only about 2,3x faster than node
- * using pointers for roaring makes it much faster
+ * native version of faceted search
+ * it's gonna be 2,3x faster and have low RAM consumption
  */
-std::string itemsjs::search_facets(nlohmann::json input) {
+std::tuple<std::string, std::optional<Roaring>> itemsjs::search_facets(nlohmann::json input, nlohmann::json filters_array, nlohmann::json config, std::optional<Roaring> query_ids) {
 
-  //map<string, map<string, Roaring>> facets;
-  //map<string_view, map<string_view, Roaring>> facets;
-  std::map<string_view, std::map<string_view, Roaring>> facets;
+  std::map<string, std::map<string, Roaring>> filters_indexes;
+  std::map<string, Roaring> combination;
+  nlohmann::json output;
+  std::optional<Roaring> ids;
 
-
-
-
-  //string::find returns string::npos and use string_view
+  cout << "start searching facets in native cpp" << endl;
 
   auto env = lmdb::env::create();
   env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL);
@@ -72,73 +66,103 @@ std::string itemsjs::search_facets(nlohmann::json input) {
 
   std::string_view key, value;
 
-  Roaring ids;
+  Roaring filter_indexes;
 
+  // fetch filters indexes
+  // TODO replace input with filters array
+  for (auto& [field, filters] : input["filters"].items()) {
+    for (auto& [filter_key, filter] : filters.items()) {
 
+      std::string_view ids_bytes;
 
+      std::string sv(field);
+      std::string sv2(filter);
+      string name = sv + "." + sv2;
+
+      if (dbi.get(rtxn, name, ids_bytes)) {
+        Roaring ids = Roaring::read(ids_bytes.data());
+        cout << "filter indexes: " << sv << " " << sv2 << " " << ids.cardinality() << endl;
+        filters_indexes[sv][sv2] = ids;
+        //filter_indexes = ids;
+      }
+    }
+  }
+
+  nlohmann::json facets_fields = {"tags", "actors", "category"};
+
+  for (auto& name: facets_fields) {
+
+    string key(name);
+    //cout << key << endl;
+
+    for (auto& object: filters_array) {
+      //cout << object.dump() << endl;
+      string field(object["key"]);
+
+      for (auto& filter_temp : object["values"]) {
+        //std::cout << filter_temp << '\n';
+        string filter(filter_temp);
+
+        //cout << config[key]["conjunction"] << endl;
+
+        if ((config[key]["conjunction"] == false && key != field) or config[key]["conjunction"] != false) {
+
+          if (!combination.count(key)) {
+            combination[key] = filters_indexes[field][filter];
+          } else {
+            if (config[field]["conjunction"] != false) {
+              combination[key] = combination[key] & filters_indexes[field][filter];
+            } else {
+              combination[key] = combination[key] | filters_indexes[field][filter];
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // cross combination with query ids
+  if (query_ids) {
+    for (auto& name: facets_fields) {
+      string key(name);
+      if (!combination.count(key)) {
+        combination[key] = query_ids.value();
+      } else {
+        combination[key] &= query_ids.value();
+      }
+    }
+  }
+
+  // intersection in native cpp is 2.5 x faster than in js
+  auto start = std::chrono::high_resolution_clock::now();
   while (cursor.get(key, value, MDB_NEXT)) {
 
-    ids = Roaring::read(value.data());
-    //std::cout << "key: " << key << "  value: " << ids.cardinality() << std::endl;
-
-    //string key2(key);
+    Roaring ids = Roaring::read(value.data());
 
     std::string_view key1 = key;
     std::string_view key2 = key;
 
     key1.remove_suffix(key1.size() - key1.find_first_of("."));
-    //cout << "key1: " << key1 << endl;
-
     key2.remove_prefix(std::min(key2.find_first_of("."), key2.size()) + 1);
-    //cout << "key2: " << key2 << endl;
+    std::string sv(key1);
+    std::string sv2(key2);
 
-    //temp[key2] = ids;
-    //temp.emplace(key2, &ids);
-
-    // it's taking half time
-    facets[key1][key2] = ids;
-    //facets.insert({key1, key2, ids});
-    //facets.emplace(key1, "ddd");
-  }
-
-
-  //nlohmann::json j;
-  //j["pi"] = 3.141;
-
-  // we could start filters calculation now
-  // we need filters input from user yet
-
-  for (auto&& [key, values] : facets) {
-    for (auto&& [key2, roar] : values) {
-      //cout << key << " " << key2 << " " << roar.cardinality() << endl;
+    if (combination.count(sv)) {
+      ids &= combination[sv];
     }
+
+    output[sv][sv2] = ids.cardinality();
   }
 
-  for (auto& [field, filters] : input["filters"].items()) {
-    for (auto& [filter_key, filter] : filters.items()) {
-
-      Roaring filter_indexes = facets[field][filter];
-
-      for (auto&& [key, values] : facets) {
-        for (auto&& [key2, roar] : values) {
-
-          //cout << key2 << " " << roar->cardinality() << endl;
-          //cout << key << " " << key2 << " " << endl;
-          //result = RoaringBitmap32.and(filter_indexes, facet_indexes);
-
-          //facets[key][key2] = filter_indexes & roar;
-          facets[key][key2] &= filter_indexes;
-        }
-      }
-    }
-  }
+  auto elapsed = std::chrono::high_resolution_clock::now() - start;
+  std::cout << "facets search time: " << elapsed.count() / 1000000<< std::endl;
 
   // probably not needed because it's auto destroyed after going out of scope
   cursor.close();
   rtxn.abort();
   env.close();
 
-  return "search_facets";
+  return {output.dump(), ids};
 }
 
 std::vector<int> lista;
@@ -513,30 +537,65 @@ Napi::String itemsjs::JsonWrapped(const Napi::CallbackInfo& info) {
   return returnValue;
 }
 
-Napi::String itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {
+Napi::Object itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {
 
   Napi::Env env = info.Env();
   Napi::String returnValue;
 
-  Napi::Object first = info[0].As<Napi::Object>();
   Napi::Object json = env.Global().Get("JSON").As<Napi::Object>();
   Napi::Function stringify = json.Get("stringify").As<Napi::Function>();
-  string json_string = stringify.Call(json, { first }).As<Napi::String>();
 
-  cout << json_string << endl;
+  Napi::Object first = info[0].As<Napi::Object>();
+  string input_string = stringify.Call(json, { first }).As<Napi::String>();
+  nlohmann::json input = nlohmann::json::parse(input_string);
 
-  //auto j3 = json::parse("{ \"happy\": true, \"pi\": 3.141 }");
-  nlohmann::json input = nlohmann::json::parse(json_string);
-  //auto j3 = nlohmann::json::parse(first);
-  //auto j3 = nlohmann::json::parse("{ \"happy\": true, \"pi\": 3.141 }");
+  Napi::Object second = info[1].As<Napi::Object>();
+  string filters_array_string = stringify.Call(json, { second }).As<Napi::String>();
+  nlohmann::json filters_array = nlohmann::json::parse(filters_array_string);
 
+  Napi::Object third = info[2].As<Napi::Object>();
+  string conf_string = stringify.Call(json, { third }).As<Napi::String>();
+  nlohmann::json conf = nlohmann::json::parse(conf_string);
 
-  //returnValue = Napi::String::New(env, itemsjs::index("", json_string, faceted_fields_array, append));
+  // buffers
+  // https://github.com/nodejs/node-addon-api/blob/master/doc/buffer.md
+  // https://github.com/nodejs/node-addon-api/issues/405
+  Napi::Value forth = info[3];
 
+  std::optional<Roaring> query_ids;
 
-  //Napi::String json_path = info[0].As<Napi::String>();
-  //Napi::Number at = info[1].As<Napi::Number>();
-  return Napi::String::New(env, itemsjs::search_facets(input));
+  Napi::Object obj = Napi::Object::New(env);
+
+  if (!forth.IsNull()) {
+    Napi::Buffer<char> buffer = info[3].As<Napi::Buffer<char>>();
+    query_ids = Roaring::read(buffer.Data());
+  }
+
+  Roaring test;
+  test.add(1);
+  test.add(10);
+
+  int expectedsize = test.getSizeInBytes();
+  char *serializedbytes = new char [expectedsize];
+  test.write(serializedbytes);
+  std::string_view nowy(serializedbytes, expectedsize);
+
+  // no idea yet how to use finalizer to free memory
+  //Napi::Buffer<char> buffer2 = Napi::Buffer<char>::New(env, (char *)nowy.data(), nowy.length(), [](Env [>env<], uint16_t* finalizeData) {
+    //delete[] finalizeData;
+  //});
+
+  // bit slowier because copy but no leak
+  Napi::Buffer<char> buffer3 = Napi::Buffer<char>::Copy(env, nowy.data(), nowy.length());
+  delete serializedbytes;
+
+  obj.Set("ids", buffer3);
+
+  //nlohmann::json result;
+  auto [result, ids] = itemsjs::search_facets(input, filters_array, conf, query_ids);
+  obj.Set("facets", result);
+
+  return obj;
 }
 
 

@@ -105,10 +105,6 @@ Facets.prototype = {
   load_indexes: function() {
 
 
-    var time = new Date().getTime();
-    addon.search_facets(input);
-    console.log(`search facets from addon: ${new Date().getTime() - time}`);
-
 
     /**
      * get facets from file memory db
@@ -147,6 +143,44 @@ Facets.prototype = {
     return temp_facet;
   },
 
+  search_native: function(input, data) {
+
+    data = data || {};
+    var configuration = this.configuration();
+    var config = configuration.aggregations;
+
+    if (!config) {
+      throw new Error('Not found configuration for faceted search');
+    }
+
+    var filters_array = _.map(input.filters, function(filter, key) {
+      return {
+        key: key,
+        values: filter,
+        conjunction: config[key].conjunction !== false,
+      }
+    })
+
+    filters_array.sort(function(a, b) {
+      return a.conjunction > b.conjunction ? 1 : -1;
+    })
+
+    var query_ids = data.query_ids ? data.query_ids.serialize(true) : null;
+
+    //var query_ids = new RoaringBitmap32([1, 2]).serialize(true);
+    //var result = addon.search_facets(input, filters_array, config, Buffer.from('this is a tést'));
+    var result = addon.search_facets(input, filters_array, config, query_ids);
+
+    //console.log(result);
+    //var aha = RoaringBitmap32.deserialize(result.ids, true);
+    //console.log(aha);
+    //console.log(aha.toArray());
+
+    return {
+      bits_data_temp: JSON.parse(result.facets),
+      ids: null
+    }
+  },
 
   /*
    *
@@ -166,6 +200,12 @@ Facets.prototype = {
 
     data = data || {};
     input = input || {};
+
+    var time = new Date().getTime();
+    console.log(`------------- search facets from addon: ${new Date().getTime() - time}`);
+    var result = this.search_native(input);
+    //var f = JSON.parse(result.facets);
+    console.log(`------------- search facets from addon + parse: ${new Date().getTime() - time}`);
 
     var temp_facet = this.load_indexes();
 
@@ -220,6 +260,9 @@ Facets.prototype = {
     time = new Date().getTime() - time;
     console.log('not filters crossing matrix: ' + time);
     console.log(`not filters calculated: ${i} times`);
+
+
+
 
     /**
      * end of not filters calculations

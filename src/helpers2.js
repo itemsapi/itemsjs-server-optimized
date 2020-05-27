@@ -227,6 +227,7 @@ const findex = function(items, config) {
 
 /**
  * it calculates new indexes for each facet group
+ * @TODO config should be in filters data already
  */
 const combination = function(facets_data, input, config) {
 
