@@ -53,6 +53,7 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
   std::map<string, std::map<string, Roaring>> filters_indexes;
   std::map<string, std::map<string, Roaring>> not_filters_indexes;
   std::map<string, Roaring> combination;
+  std::set<string> filters_fields_set = facets_fields;
   nlohmann::json output;
 
   auto env = lmdb::env::create();
@@ -192,8 +193,6 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
 
   while (cursor.get(key, value, MDB_NEXT)) {
 
-    Roaring ids = Roaring::read(value.data());
-
     std::string_view key1 = key;
     std::string_view key2 = key;
 
@@ -201,6 +200,12 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
     key2.remove_prefix(std::min(key2.find_first_of("."), key2.size()) + 1);
     std::string sv(key1);
     std::string sv2(key2);
+
+    if (!filters_fields_set.count(sv)) {
+      continue;
+    }
+
+    Roaring ids = Roaring::read(value.data());
 
     // negative filters
     if (not_ids) {
@@ -218,14 +223,12 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
         //filters_indexes[sv][sv2] &= combination[sv];
         filters_indexes[sv][sv2] &= ids;
       }
-
     }
 
 
     output[sv][sv2] = ids.cardinality();
     ++i;
   }
-
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
   std::cout << "cursor facets search time: " << elapsed.count() / 1000000<< std::endl;
@@ -258,8 +261,6 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
 
   return {output.dump(), ids, not_ids};
 }
-
-
 
 
 std::vector<int> lista;

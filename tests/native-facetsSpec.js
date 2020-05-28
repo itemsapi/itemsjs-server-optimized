@@ -365,3 +365,49 @@ describe('negative filters', function() {
   })
 
 })
+
+describe('facets with subset', function() {
+
+  var configuration = {
+    aggregations: {
+      tags: {
+        title: 'Tags',
+        conjunction: true,
+      },
+      actors: {
+        title: 'Actors',
+        conjunction: true,
+      },
+      category: {
+        title: 'Category',
+        conjunction: true,
+      }
+    }
+  }
+
+  before(function() {
+    storage.dropDB();
+    facets = new Facets();
+    facets.index({
+      json_object: items,
+      append: false,
+      configuration: configuration
+    });
+  });
+
+  it('returns only tags facets', function test(done) {
+
+    var input = {
+      filters: {
+        tags: ['c'],
+      },
+      facets_fields: ['tags']
+    }
+
+    var result = facets.search_native(input);
+    assert.deepEqual(Object.keys(result.bits_data_temp), ['tags']);
+
+    done();
+  })
+
+})

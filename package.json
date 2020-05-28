@@ -1,6 +1,6 @@
 {
   "name": "itemsjs-server-optimized",
-  "version": "0.4.44",
+  "version": "0.4.46",
   "description": "ItemsJS on steroid",
   "main": "lib/index.js",
   "scripts": {
