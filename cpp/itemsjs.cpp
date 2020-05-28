@@ -69,6 +69,12 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
 
   Roaring filter_indexes;
 
+  auto start = std::chrono::high_resolution_clock::now();
+  auto elapsed = std::chrono::high_resolution_clock::now() - start;
+
+
+  start = std::chrono::high_resolution_clock::now();
+
   // fetch filters indexes
   // TODO replace input with filters array
   for (auto& [field, filters] : input["filters"].items()) {
@@ -105,6 +111,10 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
     }
   }
 
+  elapsed = std::chrono::high_resolution_clock::now() - start;
+  std::cout << "load filters indexes time: " << elapsed.count() / 1000000<< std::endl;
+
+  start = std::chrono::high_resolution_clock::now();
 
   for (auto& name: facets_fields) {
 
@@ -137,6 +147,9 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
     }
   }
 
+  elapsed = std::chrono::high_resolution_clock::now() - start;
+  std::cout << "combination time: " << elapsed.count() / 1000000<< std::endl;
+
   // cross combination with query ids
   if (query_ids) {
     for (auto& name: facets_fields) {
@@ -160,7 +173,6 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
       std::string sv2(filter);
 
       //cout << field << " " << filter << endl;
-      //cout << "not filtes petla" << endl;
       temp_not_ids |= not_filters_indexes[sv][sv2];
       checked = true;
     }
@@ -175,7 +187,8 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
 
 
   // intersection in native cpp is 2.5 x faster than in js
-  auto start = std::chrono::high_resolution_clock::now();
+  start = std::chrono::high_resolution_clock::now();
+  int i = 0;
 
   while (cursor.get(key, value, MDB_NEXT)) {
 
@@ -195,27 +208,28 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
     }
 
     if (combination.count(sv)) {
+
+      // @TODO
+      // use and_cardinality
       ids &= combination[sv];
 
       // for calculating ids later
       if (filters_indexes.count(sv) and filters_indexes[sv].count(sv2)) {
         //filters_indexes[sv][sv2] &= combination[sv];
         filters_indexes[sv][sv2] &= ids;
-        //cout << "combination" << endl;
-        //cout << input.dump() << endl;
-        //// calculating ids
-        //temp_ids |= ids;
-        //checked = true;
       }
+
     }
 
 
     output[sv][sv2] = ids.cardinality();
+    ++i;
   }
 
 
-  auto elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "facets search time: " << elapsed.count() / 1000000<< std::endl;
+  elapsed = std::chrono::high_resolution_clock::now() - start;
+  std::cout << "cursor facets search time: " << elapsed.count() / 1000000<< std::endl;
+  std::cout << "facets crossed times: " << i << std::endl;
 
   // probably not needed because it's auto destroyed after going out of scope
   cursor.close();
@@ -242,9 +256,11 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
     ids = temp_ids;
   }
 
-
   return {output.dump(), ids, not_ids};
 }
+
+
+
 
 std::vector<int> lista;
 

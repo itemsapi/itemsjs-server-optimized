@@ -167,15 +167,11 @@ Facets.prototype = {
 
     var query_ids = data.query_ids ? data.query_ids.serialize(true) : null;
 
-    //var query_ids = new RoaringBitmap32([1, 2]).serialize(true);
-    //var result = addon.search_facets(input, filters_array, config, Buffer.from('this is a tést'));
+    var time = new Date().getTime();
     var result = addon.search_facets(input, filters_array, config, _.keys(config), query_ids);
-
-    //console.log(result);
-    //var aha = RoaringBitmap32.deserialize(result.ids, true);
+    console.log(`native search time: ${new Date().getTime() - time}`);
 
     var ids = result.ids ? RoaringBitmap32.deserialize(result.ids, true) : null
-    // @TODO abandon it
     var not_ids = result.not_ids ? RoaringBitmap32.deserialize(result.not_ids, true) : null
 
     return {
