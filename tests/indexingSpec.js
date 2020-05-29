@@ -169,6 +169,10 @@ describe('indexing', function() {
     var filter_index = storage.getFilterIndex('id.1');
     assert.deepEqual(undefined, filter_index);
 
+    assert.equal(1, storage.getInternalId(1));
+    assert.equal(4, storage.getInternalId(4));
+    assert.equal(undefined, storage.getInternalId(5));
+
     done();
   })
 

@@ -22,6 +22,12 @@ module.exports.dropDB = function() {
     name: null,
     create: false
   });
+
+  var dbi2 = env.openDbi({
+    name: 'filters',
+    create: true
+  });
+  dbi2.drop();
 }
 
 module.exports.deleteConfiguration = function(configuration) {
@@ -57,6 +63,33 @@ module.exports.getConfiguration = function() {
 
   return result;
 }
+
+
+module.exports.getInternalId = function(id) {
+
+  var dbi_pkeys = env.openDbi({
+    name: 'pkeys',
+    create: true
+  })
+
+  var txn = env.beginTxn({
+    readonly: true
+  });
+
+  var binary = txn.getBinary(dbi_pkeys, new Buffer.from('' + id));
+  txn.abort();
+  dbi_pkeys.close();
+
+
+  if (binary) {
+    var string = binary.toString();
+
+    if (string) {
+      return parseInt(string, 10);
+    }
+  }
+}
+
 
 module.exports.getKeysList = function() {
 

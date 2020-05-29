@@ -1,3 +1,7 @@
+/*
+ * Author: Mateusz Rzepa
+ * Copyright: 2015-2020, ItemsAPI
+ */
 #include "itemsjs.h"
 //#include <iostream>
 #include "roaring.hh"
@@ -42,8 +46,6 @@ std::string itemsjs::json_at(string json_path, int i) {
 
 /**
  * native version of faceted search
- * it's gonna be 2,3x faster and have low RAM consumption
- * @TODO
  */
 std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs::search_facets(nlohmann::json input, nlohmann::json filters_array, nlohmann::json config, nlohmann::json facets_fields, std::optional<Roaring> query_ids) {
 
@@ -267,13 +269,12 @@ std::vector<int> lista;
 
 std::string itemsjs::index(string json_path, string json_string, vector<string> &faceted_fields, bool append = true) {
 
-  map<string_view, map<string_view, vector<int>>> facets3;
   map<string_view, map<string_view, Roaring>> roar;
   //map<string_view, Roaring> search_roar;
 
   // @TODO change to string_view for 2x performance on tokenizing search terms
   map<string, Roaring> search_roar;
-  vector<string> keys_list;
+  //vector<string> keys_list;
   Roaring ids;
   int starting_id = 1;
 
@@ -307,10 +308,6 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
       if (dbi2.get(rtxn2, "ids", last_ids)) {
 
         ids = Roaring::read(last_ids.data());
-        //cout << "size of new roar..." << t4.getSizeInBytes() << endl;
-        //cout << "minimum..." << t4.minimum() << endl;
-        //cout << "minimum..." << t4.maximum() << endl;
-
         starting_id = ids.maximum() + 1;
       }
     }
@@ -341,22 +338,33 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
   auto wtxn = lmdb::txn::begin(env);
   auto dbi = lmdb::dbi::open(wtxn, nullptr);
+  auto dbi_pkeys = lmdb::dbi::open(wtxn, "pkeys", MDB_CREATE);
 
   start = std::chrono::high_resolution_clock::now();
 
+  /**
+   * write items to db
+   */
   int id = starting_id;
   for (simdjson::dom::element item : items) {
 
-    string ok = "";
-
     string sv = simdjson::minify(item);
     string name = to_string(id) + "";
-    //dbi.del(wtxn, name);
     dbi.put(wtxn, name.c_str(), sv.c_str());
+
+    simdjson::error_code error;
+    uint64_t value;
+    item.at_key("id").get<uint64_t>().tie(value, error);
+
+    if (!error) {
+      string pkey(to_string(value));
+      dbi_pkeys.put(wtxn, name.c_str(), pkey.c_str());
+    }
 
     ids.add(id);
     ++id;
   }
+
 
   /**
    * write ids to db
@@ -380,6 +388,9 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   //std::cout << "start indexing facets: " << std::endl;
   start = std::chrono::high_resolution_clock::now();
 
+  /**
+   * tokenize items to facets indexes
+   */
   id = starting_id;
   for (simdjson::dom::object item : items) {
 
@@ -394,11 +405,11 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
           for (auto filter : value) {
 
-            facets3[key][filter].push_back(id);
             roar[key][filter].add(id);
           }
         }
 
+        // there is small memory leak
         else if (key == field and value.type() == simdjson::dom::element_type::INT64) {
 
           string year(to_string(int64_t(value)));
@@ -406,7 +417,6 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
           strcpy(char_array, year.c_str());
           string_view filter (char_array, year.length());
 
-          facets3[key][filter].push_back(id);
           roar[key][filter].add(id);
           //delete char_array;
         }
@@ -414,11 +424,9 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
         else if (key == field and value.type() == simdjson::dom::element_type::STRING) {
 
           string_view filter (value);
-          facets3[key][filter].push_back(id);
           roar[key][filter].add(id);
         }
       }
-
     }
 
     ++id;
@@ -463,22 +471,9 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
       dbi2.put(wtxn, name, nowy);
 
       delete serializedbytes;
-
-      // we should remove it and use cursors
-      keys_list.push_back(name);
-
       //dbi.put(wtxn, name.c_str(), serializedbytes);
     }
   }
-
-  string keys_list_joined = "";
-  for (auto const& s : keys_list) {
-    keys_list_joined += s;
-    keys_list_joined += "|||";
-  }
-  //std::cout << keys_list_joined;
-
-  dbi.put(wtxn, "keys_list", keys_list_joined);
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
   std::cout << "facets put time: " << elapsed.count() / 1000000<< std::endl;
@@ -503,7 +498,6 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
     for (auto [key, value] : item) {
 
-
       if (value.type() == simdjson::dom::element_type::ARRAY) {
 
         for (auto filter : value) {
@@ -521,9 +515,6 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
               search_roar[token2].add(id);
             }
           }
-
-          //facets3[key][filter].push_back(i);
-          //roar[key][filter].add(i);
         }
       }
 

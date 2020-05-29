@@ -1,3 +1,7 @@
+/*
+ * Author: Mateusz Rzepa
+ * Copyright: 2015-2020, ItemsAPI
+ */
 #include <napi.h>
 #include "itemsjs.h"
 
