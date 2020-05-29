@@ -227,6 +227,7 @@ const findex = function(items, config) {
 
 /**
  * it calculates new indexes for each facet group
+ * @TODO config should be in filters data already
  */
 const combination = function(facets_data, input, config) {
 
@@ -379,8 +380,7 @@ const getBuckets = function(data, input, aggregations) {
 
       return {
         key: v2[0],
-        //doc_count: v2[1].length,
-        doc_count: v2[1].size,
+        doc_count: Number.isInteger(v2[1]) ? v2[1] : v2[1].size,
         selected: filters.indexOf(v2[0]) !== -1
       }
     })

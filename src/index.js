@@ -26,6 +26,14 @@ module.exports = function itemsjs() {
       facets.set_configuration(data);
     },
 
+    get_configuration: function(data) {
+      return facets.configuration();
+    },
+
+    reset: function(data) {
+      storage.dropDB();
+    },
+
     /**
      * per_page
      * page
@@ -47,15 +55,7 @@ module.exports = function itemsjs() {
        */
       input.aggregations = helpers.mergeAggregations(configuration.aggregations, input);
 
-
-
       return lib.search(input, configuration, facets);
-    },
-
-    /**
-     * @TODO
-     */
-    similar: function(id, options) {
     },
 
     /**
@@ -70,11 +70,5 @@ module.exports = function itemsjs() {
       }
       return lib.aggregation(input, configuration, facets);
     },
-
-    /**
-     * @TODO
-     */
-    reindex: function() {
-    }
   }
 }

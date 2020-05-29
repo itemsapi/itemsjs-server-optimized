@@ -103,7 +103,7 @@ describe('conjunctive search', function() {
 
   })
 
-  xit('returns facets for empty input', function test(done) {
+  it('returns facets for empty input', function test(done) {
 
     var input = {
       filters: {
@@ -117,27 +117,11 @@ describe('conjunctive search', function() {
     assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
     assert.deepEqual(result.data.tags.e, [2]);
 
-    var ids = helpers2.facets_ids(result['bits_data_temp'], input, configuration.aggregations);
-    assert.deepEqual(ids, null);
-
-    //var result = itemsjs.search(input);
-    //assert.deepEqual(result.pagination.total, 4);
-    //assert.deepEqual(result.data.aggregations.tags.buckets[0].doc_count, 4);
-    //assert.deepEqual(result.data.aggregations.tags.buckets[0].key, 'a');
-
-
-
-
-
     var input = {
       filters: {
         tags: []
       }
     }
-
-
-
-
 
     var result = facets.search(input, {
       test: true
@@ -572,11 +556,6 @@ describe('generates facets crossed with query', function() {
     assert.deepEqual(facets.configuration(), configuration);
     done();
   })
-
-  //var itemsjs = require('./../index')(items, {
-    //aggregations: aggregations,
-    //searchableFields: ['actors'],
-  //});
 
   it('returns facets for searched ids', function test(done) {
 

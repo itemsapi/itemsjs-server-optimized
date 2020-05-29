@@ -17,6 +17,7 @@ module.exports.search = function(input, configuration, facets) {
   var order = input.order;
   var query_ids;
   var search_time = new Date().getTime();
+  var total_time = new Date().getTime();
 
   if (input.query) {
     query_ids = facets.fulltext(input);
@@ -25,7 +26,6 @@ module.exports.search = function(input, configuration, facets) {
 
   search_time = new Date().getTime() - search_time;
 
-  var total_time_start = new Date().getTime();
 
   /**
    * ------------------------------------------
@@ -39,32 +39,27 @@ module.exports.search = function(input, configuration, facets) {
 
   var new_facet_time = new Date().getTime();
 
-  /**
-   * new facet search also by using sort
-   */
-
-  var facet_result = facets.search(input, {
-    query_ids: query_ids
-  });
-
-
-  console.log('finished facets');
+  var facet_result;
+  if (1 || input.search_native) {
+    facet_result = facets.search_native(input, {
+      query_ids: query_ids
+    });
+  } else {
+    facet_result = facets.search(input, {
+      query_ids: query_ids
+    });
+  }
 
   new_facet_time = new Date().getTime() - new_facet_time;
-
+  // ------------------------------------------
 
   var facets_ids_time = new Date().getTime();
-  // it's super fast around 5ms on 500K records
 
-  //var _ids = storage.getIds();
   var _ids_bitmap = storage.getIdsBitmap();
-
 
   if (input.query) {
     _ids_bitmap = query_ids;
   }
-
-  var filtered_indexes;
 
   var filtered_indexes_bitmap = _ids_bitmap;
 
@@ -97,18 +92,17 @@ module.exports.search = function(input, configuration, facets) {
   }
 
   var new_items = storage.getItems(new_items_indexes);
-
   facets_ids_time = new Date().getTime() - facets_ids_time;
   // -------------------------------------
 
+  var time = new Date().getTime();
+  var aggregations = helpers2.getBuckets(facet_result, input, configuration.aggregations);
+  console.log(`aggregations process time: ${new Date().getTime() - time}`);
+  total_time = new Date().getTime() - total_time;
 
-  /**
-   * calculating facets
-   */
-  var facets_start_time = new Date().getTime();
-  //var aggregations = module.exports.aggregations(items, input.aggregations);
-  var facets_time = new Date().getTime() - facets_start_time;
-  var total_time = new Date().getTime() - total_time_start;
+  console.log(`facets search time: ${new_facet_time}`);
+  //console.log(`filters time: ${facets_ids_time}`);
+  console.log(`total total search time: ${total_time}`);
 
   return {
     pagination: {
@@ -126,8 +120,7 @@ module.exports.search = function(input, configuration, facets) {
     },
     data: {
       items: new_items,
-      //aggregations: aggregations,
-      aggregations: helpers2.getBuckets(facet_result, input, configuration.aggregations),
+      aggregations: aggregations,
     }
   };
 }

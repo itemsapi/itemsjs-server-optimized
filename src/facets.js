@@ -104,6 +104,8 @@ Facets.prototype = {
 
   load_indexes: function() {
 
+
+
     /**
      * get facets from file memory db
      */
@@ -141,6 +143,49 @@ Facets.prototype = {
     return temp_facet;
   },
 
+  search_native: function(input, data) {
+
+    data = data || {};
+    var configuration = this.configuration();
+    var config = configuration.aggregations;
+
+    if (!config) {
+      throw new Error('Not found configuration for faceted search');
+    }
+
+    var filters_array = _.map(input.filters, function(filter, key) {
+      return {
+        key: key,
+        values: filter,
+        conjunction: config[key].conjunction !== false,
+      }
+    })
+
+    filters_array.sort(function(a, b) {
+      return a.conjunction > b.conjunction ? 1 : -1;
+    })
+
+    var query_ids = data.query_ids ? data.query_ids.serialize(true) : null;
+
+    var facets_fields = _.keys(config);
+
+    if (input.facets_fields) {
+      facets_fields = _.intersection(facets_fields, input.facets_fields);
+    }
+
+    var time = new Date().getTime();
+    var result = addon.search_facets(input, filters_array, config, facets_fields, query_ids);
+    console.log(`native search time: ${new Date().getTime() - time}`);
+
+    var ids = result.ids ? RoaringBitmap32.deserialize(result.ids, true) : null
+    var not_ids = result.not_ids ? RoaringBitmap32.deserialize(result.not_ids, true) : null
+
+    return {
+      bits_data_temp: JSON.parse(result.facets),
+      ids: ids,
+      not_ids: not_ids
+    }
+  },
 
   /*
    *
@@ -214,6 +259,9 @@ Facets.prototype = {
     time = new Date().getTime() - time;
     console.log('not filters crossing matrix: ' + time);
     console.log(`not filters calculated: ${i} times`);
+
+
+
 
     /**
      * end of not filters calculations
