@@ -1,5 +1,6 @@
 const lmdb = require('node-lmdb');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
+const addon = require('bindings')('itemsjs_addon.node');
 
 const env = new lmdb.Env();
 env.open({
@@ -28,6 +29,11 @@ module.exports.dropDB = function() {
     create: true
   });
   dbi2.drop();
+}
+
+
+module.exports.delete_item = function(id) {
+  var result = addon.delete_item(id);
 }
 
 module.exports.deleteConfiguration = function(configuration) {
@@ -158,13 +164,18 @@ module.exports.getSearchTermIndex = function(key) {
 
 module.exports.getFilterIndex = function(key) {
 
+  var dbi_filters = env.openDbi({
+    name: 'filters',
+    create: true
+  })
+
   var txn = env.beginTxn({
     readonly: true
   });
 
-  //var binary = txn.getBinary(dbi, new Buffer.from('actors.Al Pacino'));
-  var binary = txn.getBinary(dbi, new Buffer.from(key));
+  var binary = txn.getBinary(dbi_filters, new Buffer.from(key));
   txn.abort();
+  dbi_filters.close();
 
   if (!binary) {
     return;
@@ -184,6 +195,11 @@ module.exports.getFilterIndexes = function() {
   var output = {};
   var keys = module.exports.getKeysList();
 
+  var dbi_filters = env.openDbi({
+    name: 'filters',
+    create: true
+  })
+
   var txn = env.beginTxn({
     readonly: true
   });
@@ -194,7 +210,7 @@ module.exports.getFilterIndexes = function() {
       return;
     }
 
-    var binary = txn.getBinary(dbi, new Buffer.from(key));
+    var binary = txn.getBinary(dbi_filters, new Buffer.from(key));
 
     if (binary) {
       output[key] = RoaringBitmap32.deserialize(binary, true);
@@ -202,6 +218,7 @@ module.exports.getFilterIndexes = function() {
   })
 
   txn.abort();
+  dbi_filters.close();
   return output;
 }
 
