@@ -1,5 +1,7 @@
 const lmdb = require('node-lmdb');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
+const addon = require('bindings')('itemsjs_addon.node');
+const _ = require('lodash');
 
 const env = new lmdb.Env();
 env.open({
@@ -8,7 +10,7 @@ env.open({
   mapSize: 100 * 1024 * 1024 * 1024,
   maxReaders: 10,
   //noTls: true,
-  maxDbs: 10
+  maxDbs: 30
 });
 
 var dbi = env.openDbi({
@@ -23,11 +25,61 @@ module.exports.dropDB = function() {
     create: false
   });
 
-  var dbi2 = env.openDbi({
-    name: 'filters',
-    create: true
+  ['filters', 'terms', 'items', 'pkeys'].forEach(v => {
+    var dbi2 = env.openDbi({
+      name: v,
+      create: true
+    });
+    dbi2.drop();
+  })
+}
+
+
+module.exports.deleteItem = function(id) {
+
+  var internal_id = module.exports.getInternalId(id);
+
+  if (internal_id) {
+    addon.delete_item(internal_id);
+  }
+}
+
+module.exports.updateItem = function(item, options) {
+
+  options = options || {};
+
+  if (!item.id) {
+    throw new Error('integer id is required');
+  }
+
+  var internal_id = module.exports.getInternalId(item.id);
+
+  //var configuration = module.exports.getConfiguration();
+  //var faceted_fields = _.keys(configuration.aggregations);
+
+  addon.delete_item(internal_id);
+  addon.index({
+    json_object: [item],
+    faceted_fields: options.faceted_fields,
+    append: true
   });
-  dbi2.drop();
+}
+
+module.exports.partialUpdateItem = function(id, item, options) {
+
+  options = options || {};
+
+  var internal_id = module.exports.getInternalId(id);
+
+  var old_item = module.exports.getItemByPkey(id);
+
+
+  addon.delete_item(internal_id);
+  addon.index({
+    json_object: [_.assign(old_item, item)],
+    faceted_fields: options.faceted_fields,
+    append: true
+  });
 }
 
 module.exports.deleteConfiguration = function(configuration) {
@@ -119,31 +171,23 @@ module.exports.getKeysList = function() {
   dbi2.close();
 
   return array;
-
-
-  var txn = env.beginTxn({
-    readonly: true
-  });
-  var time = new Date().getTime();
-  var binary = txn.getBinary(dbi, new Buffer.from('keys_list'));
-  txn.abort();
-
-  var string = binary.toString();
-  var array = string.split('|||');
-  console.log(`load keys by splitting: ${new Date().getTime() - time}`);
-
-  console.log(array[0]);
-
-  return array;
 }
 
 module.exports.getSearchTermIndex = function(key) {
 
+
+  var dbi_terms = env.openDbi({
+    name: 'terms',
+    create: true
+  })
+
   var txn = env.beginTxn({
     readonly: true
   });
-  var binary = txn.getBinary(dbi, new Buffer.from('term|||' + key));
+
+  var binary = txn.getBinary(dbi_terms, new Buffer.from('' + key));
   txn.abort();
+  dbi_terms.close();
 
   if (!binary) {
     return;
@@ -158,13 +202,18 @@ module.exports.getSearchTermIndex = function(key) {
 
 module.exports.getFilterIndex = function(key) {
 
+  var dbi_filters = env.openDbi({
+    name: 'filters',
+    create: true
+  })
+
   var txn = env.beginTxn({
     readonly: true
   });
 
-  //var binary = txn.getBinary(dbi, new Buffer.from('actors.Al Pacino'));
-  var binary = txn.getBinary(dbi, new Buffer.from(key));
+  var binary = txn.getBinary(dbi_filters, new Buffer.from(key));
   txn.abort();
+  dbi_filters.close();
 
   if (!binary) {
     return;
@@ -184,6 +233,11 @@ module.exports.getFilterIndexes = function() {
   var output = {};
   var keys = module.exports.getKeysList();
 
+  var dbi_filters = env.openDbi({
+    name: 'filters',
+    create: true
+  })
+
   var txn = env.beginTxn({
     readonly: true
   });
@@ -194,7 +248,7 @@ module.exports.getFilterIndexes = function() {
       return;
     }
 
-    var binary = txn.getBinary(dbi, new Buffer.from(key));
+    var binary = txn.getBinary(dbi_filters, new Buffer.from(key));
 
     if (binary) {
       output[key] = RoaringBitmap32.deserialize(binary, true);
@@ -202,24 +256,46 @@ module.exports.getFilterIndexes = function() {
   })
 
   txn.abort();
+  dbi_filters.close();
   return output;
 }
 
+module.exports.getItemByPkey = function(id) {
+  var internal_id = module.exports.getInternalId(id);
+  return module.exports.getItem(internal_id);
+}
+
 module.exports.getItem = function(id) {
+
+  var dbi_items = env.openDbi({
+    name: 'items',
+    create: true
+  })
 
   var txn = env.beginTxn({
     readonly: true
   });
 
-  var binary = txn.getBinary(dbi, new Buffer.from(id + ''));
+  var binary = txn.getBinary(dbi_items, new Buffer.from(id + ''));
   txn.abort();
-  var json = JSON.parse(binary.toString());
+  dbi_items.close();
 
+
+  if (!binary) {
+    return;
+  }
+
+  var json = JSON.parse(binary.toString());
 
   return json;
 }
 
 module.exports.getItems = function(ids) {
+
+  var dbi_items = env.openDbi({
+    name: 'items',
+    create: true
+  })
 
   var txn = env.beginTxn({
     readonly: true
@@ -228,12 +304,18 @@ module.exports.getItems = function(ids) {
 
   ids.forEach(id => {
 
-    var binary = txn.getBinary(dbi, new Buffer.from(id + ''));
-    var json = JSON.parse(binary.toString());
-    output.push(json);
+    var binary = txn.getBinary(dbi_items, new Buffer.from(id + ''));
+
+    if (binary) {
+      var json = JSON.parse(binary.toString());
+      output.push(json);
+    } else {
+
+    }
   })
 
   txn.abort();
+  dbi_items.close();
 
   return output;
 }
