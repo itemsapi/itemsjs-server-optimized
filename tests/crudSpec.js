@@ -169,3 +169,77 @@ describe('update items partially', function() {
     done();
   })
 })
+
+describe('aggregation / facet', function() {
+
+  var facets = new Facets();
+
+  var configuration = {
+    aggregations: {
+      actors: {
+        conjunction: true,
+      },
+      genres: {
+        conjunction: true,
+      },
+      year: {
+        conjunction: true,
+      },
+      director: {
+        conjunction: true,
+      }
+    }
+  }
+
+
+
+  before(function(done) {
+    storage.dropDB();
+
+    facets.index({
+      json_object: data,
+      append: false,
+      configuration: configuration
+    });
+
+    done();
+  });
+
+  it('checks index after partial update', function test(done) {
+
+    facets.partial_update_item(1, {
+      name: 'Tom & Jerry'
+    });
+
+    var ids = storage.getIdsBitmap();
+    assert.deepEqual(ids.size, 20);
+    assert.deepEqual(1, storage.getItem(21).id);
+    assert.deepEqual('Tom & Jerry', storage.getItem(21).name);
+    assert.deepEqual(1, storage.getItemByPkey(1).id);
+    assert.deepEqual(1994, storage.getItemByPkey(1).year);
+    assert.deepEqual(['Crime', 'Drama'], storage.getItemByPkey(1).genres);
+
+    var filter_index = storage.getFilterIndex('genres.Drama');
+    assert.deepEqual(15, filter_index.size);
+
+    done();
+  })
+
+  it('checks index after update', function test(done) {
+
+    facets.update_item({
+      id: 1,
+      name: 'Tom & Jerry'
+    });
+
+    var ids = storage.getIdsBitmap();
+    //console.log(ids.toArray())
+    assert.deepEqual(ids.size, 20);
+    assert.deepEqual(1, storage.getItem(21).id);
+    assert.deepEqual('Tom & Jerry', storage.getItem(21).name);
+    assert.deepEqual(1, storage.getItemByPkey(1).id);
+    assert.deepEqual(undefined, storage.getItemByPkey(1).year);
+
+    done();
+  })
+})

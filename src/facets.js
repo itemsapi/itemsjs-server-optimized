@@ -28,6 +28,35 @@ Facets.prototype = {
     //return fs.emptyDirSync('./example.mdb');
   },
 
+  partial_update_item: function(id, item) {
+
+    var configuration = this.configuration();
+    var data = {
+      faceted_fields: []
+    };
+
+    if (configuration.aggregations) {
+      data.faceted_fields = _.keys(configuration.aggregations);
+    }
+
+    storage.partialUpdateItem(id, item, data);
+  },
+
+
+  update_item: function(item) {
+
+    var configuration = this.configuration();
+    var data = {
+      faceted_fields: []
+    };
+
+    if (configuration.aggregations) {
+      data.faceted_fields = _.keys(configuration.aggregations);
+    }
+
+    storage.updateItem(item, data);
+  },
+
   index: function(data) {
 
     //data.configuration.aggregations = data.configuration.aggregations || {};

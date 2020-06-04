@@ -28,7 +28,6 @@ var configuration = {
 describe('aggregation / facet', function() {
 
   before(function(done) {
-    storage.deleteConfiguration();
     storage.dropDB();
 
     facets.index({
