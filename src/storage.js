@@ -9,7 +9,7 @@ env.open({
   mapSize: 100 * 1024 * 1024 * 1024,
   maxReaders: 10,
   //noTls: true,
-  maxDbs: 10
+  maxDbs: 30
 });
 
 var dbi = env.openDbi({
@@ -24,11 +24,13 @@ module.exports.dropDB = function() {
     create: false
   });
 
-  var dbi2 = env.openDbi({
-    name: 'filters',
-    create: true
-  });
-  dbi2.drop();
+  ['filters', 'terms', 'items', 'pkeys'].forEach(v => {
+    var dbi2 = env.openDbi({
+      name: v,
+      create: true
+    });
+    dbi2.drop();
+  })
 }
 
 
@@ -125,31 +127,23 @@ module.exports.getKeysList = function() {
   dbi2.close();
 
   return array;
-
-
-  var txn = env.beginTxn({
-    readonly: true
-  });
-  var time = new Date().getTime();
-  var binary = txn.getBinary(dbi, new Buffer.from('keys_list'));
-  txn.abort();
-
-  var string = binary.toString();
-  var array = string.split('|||');
-  console.log(`load keys by splitting: ${new Date().getTime() - time}`);
-
-  console.log(array[0]);
-
-  return array;
 }
 
 module.exports.getSearchTermIndex = function(key) {
 
+
+  var dbi_terms = env.openDbi({
+    name: 'terms',
+    create: true
+  })
+
   var txn = env.beginTxn({
     readonly: true
   });
-  var binary = txn.getBinary(dbi, new Buffer.from('term|||' + key));
+
+  var binary = txn.getBinary(dbi_terms, new Buffer.from('' + key));
   txn.abort();
+  dbi_terms.close();
 
   if (!binary) {
     return;
@@ -224,12 +218,18 @@ module.exports.getFilterIndexes = function() {
 
 module.exports.getItem = function(id) {
 
+  var dbi_items = env.openDbi({
+    name: 'items',
+    create: true
+  })
+
   var txn = env.beginTxn({
     readonly: true
   });
 
-  var binary = txn.getBinary(dbi, new Buffer.from(id + ''));
+  var binary = txn.getBinary(dbi_items, new Buffer.from(id + ''));
   txn.abort();
+  dbi_items.close();
   var json = JSON.parse(binary.toString());
 
 
@@ -238,6 +238,11 @@ module.exports.getItem = function(id) {
 
 module.exports.getItems = function(ids) {
 
+  var dbi_items = env.openDbi({
+    name: 'items',
+    create: true
+  })
+
   var txn = env.beginTxn({
     readonly: true
   });
@@ -245,12 +250,13 @@ module.exports.getItems = function(ids) {
 
   ids.forEach(id => {
 
-    var binary = txn.getBinary(dbi, new Buffer.from(id + ''));
+    var binary = txn.getBinary(dbi_items, new Buffer.from(id + ''));
     var json = JSON.parse(binary.toString());
     output.push(json);
   })
 
   txn.abort();
+  dbi_items.close();
 
   return output;
 }

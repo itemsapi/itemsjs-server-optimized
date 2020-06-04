@@ -275,6 +275,8 @@ void itemsjs::delete_item(int id) {
   auto dbi = lmdb::dbi::open(wtxn, nullptr);
   auto dbi_pkeys = lmdb::dbi::open(wtxn, "pkeys", MDB_CREATE);
   auto dbi_filters = lmdb::dbi::open(wtxn, "filters", MDB_CREATE);
+  auto dbi_terms = lmdb::dbi::open(wtxn, "terms", MDB_CREATE);
+  auto dbi_items = lmdb::dbi::open(wtxn, "items", MDB_CREATE);
 
   simdjson::dom::parser parser;
   std::set<string> filters;
@@ -286,7 +288,7 @@ void itemsjs::delete_item(int id) {
 
   // counting filters and terms
   // get item
-  if (dbi.get(wtxn, string_id, val)) {
+  if (dbi_items.get(wtxn, string_id, val)) {
 
     string json_string(val);
 
@@ -312,7 +314,7 @@ void itemsjs::delete_item(int id) {
             string token2(t);
             boost::algorithm::to_lower(token2);
 
-            terms.emplace("term|||" + std::string(token2));
+            terms.emplace(std::string(token2));
           }
         }
       }
@@ -329,19 +331,13 @@ void itemsjs::delete_item(int id) {
 
         for (const auto &t : tok) {
 
-          string_view token1 (t);
           string token2(t);
           boost::algorithm::to_lower(token2);
 
-          terms.emplace("term|||" + std::string(token2));
+          terms.emplace(std::string(token2));
         }
       }
     }
-
-    for (auto&& filter : terms) {
-      //cout << filter << endl;
-    }
-
 
     // deleting or decreasing filters index
     for (auto&& filter : filters) {
@@ -375,7 +371,7 @@ void itemsjs::delete_item(int id) {
       //cout << filter << endl;
 
 
-      if (dbi.get(wtxn, filter, val)) {
+      if (dbi_terms.get(wtxn, filter, val)) {
         ids = Roaring::read(val.data());
         ids.remove(id);
 
@@ -384,10 +380,10 @@ void itemsjs::delete_item(int id) {
           char *serializedbytes = new char [expectedsize];
           ids.write(serializedbytes);
           std::string_view nowy(serializedbytes, expectedsize);
-          dbi.put(wtxn, filter, nowy);
+          dbi_terms.put(wtxn, filter, nowy);
           delete serializedbytes;
         } else {
-          dbi.del(wtxn, filter);
+          dbi_terms.del(wtxn, filter);
         }
       }
     }
@@ -409,6 +405,7 @@ void itemsjs::delete_item(int id) {
 
   // deleting internal id referencing to user pkey
   dbi_pkeys.del(wtxn, string_id.c_str());
+  //dbi_items.del(wtxn, string_id.c_str());
 
   wtxn.commit();
 }
@@ -494,6 +491,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   auto wtxn = lmdb::txn::begin(env);
   auto dbi = lmdb::dbi::open(wtxn, nullptr);
   auto dbi_pkeys = lmdb::dbi::open(wtxn, "pkeys", MDB_CREATE);
+  auto dbi_items = lmdb::dbi::open(wtxn, "items", MDB_CREATE);
 
   start = std::chrono::high_resolution_clock::now();
 
@@ -505,7 +503,8 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
     string sv = simdjson::minify(item);
     string name = to_string(id) + "";
-    dbi.put(wtxn, name.c_str(), sv.c_str());
+    //dbi.put(wtxn, name.c_str(), sv.c_str());
+    dbi_items.put(wtxn, name.c_str(), sv.c_str());
 
     simdjson::error_code error;
     uint64_t value;
@@ -592,7 +591,6 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
 
   wtxn = lmdb::txn::begin(env);
-  dbi = lmdb::dbi::open(wtxn, nullptr);
   auto dbi_filters = lmdb::dbi::open(wtxn, "filters", MDB_CREATE);
 
   start = std::chrono::high_resolution_clock::now();
@@ -608,7 +606,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
       if (append) {
 
         std::string_view filter_indexes;
-        if (dbi.get(wtxn, name, filter_indexes)) {
+        if (dbi_filters.get(wtxn, name, filter_indexes)) {
           //roar_object = roar_object | Roaring::read(filter_indexes.data());
           roar_object |= Roaring::read(filter_indexes.data());
           roar_object.runOptimize();
@@ -618,15 +616,12 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
       int expectedsize = roar_object.getSizeInBytes();
 
-      // ensure to free memory somewhere
       char *serializedbytes = new char [expectedsize];
       roar_object.write(serializedbytes);
       std::string_view nowy(serializedbytes, expectedsize);
-      dbi.put(wtxn, name, nowy);
-      dbi_filters.put(wtxn, name, nowy);
 
+      dbi_filters.put(wtxn, name, nowy);
       delete serializedbytes;
-      //dbi.put(wtxn, name.c_str(), serializedbytes);
     }
   }
 
@@ -683,11 +678,6 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
           string token2(token1);
           boost::algorithm::to_lower(token2);
 
-          //std::string_view largeStringView{large.c_str(), large.size()};
-          //std::string_view token4 {token2.c_str(), token2.size()};
-
-          //string_view token3 (token2);
-          //cout << token4 << endl;
           search_roar[token2].add(id);
         }
       }
@@ -699,30 +689,23 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   elapsed = std::chrono::high_resolution_clock::now() - start;
   std::cout << "roaring full text time: " << elapsed.count() / 1000000 << std::endl;
 
-
-
-
   wtxn = lmdb::txn::begin(env);
-  dbi = lmdb::dbi::open(wtxn, nullptr);
   auto dbi_terms = lmdb::dbi::open(wtxn, "terms", MDB_CREATE);
 
   start = std::chrono::high_resolution_clock::now();
   //i = 1;
   for (auto&& [key, roar_object] : search_roar) {
 
-    std::string sv(key);
+    std::string name(key);
 
-    if (sv.length() > 100) {
+    if (name.length() > 100) {
       continue;
     }
-
-    // @TODO delete prefix and move to separate db
-    string name = "term|||" + sv;
 
     if (append) {
 
       std::string_view filter_indexes;
-      if (dbi.get(wtxn, name, filter_indexes)) {
+      if (dbi_terms.get(wtxn, name, filter_indexes)) {
         roar_object |= Roaring::read(filter_indexes.data());
         roar_object.runOptimize();
       }
@@ -733,18 +716,15 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
     //cout << roar_object.cardinality() << endl;
     int expectedsize = roar_object.getSizeInBytes();
 
-    // ensure to free memory somewhere
     char *serializedbytes = new char [expectedsize];
     roar_object.write(serializedbytes);
     std::string_view nowy(serializedbytes, expectedsize);
-
-    //cout << name << endl;
 
     // ignore long key like
     //✯✯✯✯✯reviews
     //term|||✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱ᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇ
 
-    dbi.put(wtxn, name, nowy);
+    dbi_terms.put(wtxn, name, nowy);
     delete serializedbytes;
   }
 
