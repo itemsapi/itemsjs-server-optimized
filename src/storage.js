@@ -1,6 +1,7 @@
 const lmdb = require('node-lmdb');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 const addon = require('bindings')('itemsjs_addon.node');
+const _ = require('lodash');
 
 const env = new lmdb.Env();
 env.open({
@@ -34,8 +35,51 @@ module.exports.dropDB = function() {
 }
 
 
-module.exports.delete_item = function(id) {
-  var result = addon.delete_item(id);
+module.exports.deleteItem = function(id) {
+
+  var internal_id = module.exports.getInternalId(id);
+
+  if (internal_id) {
+    addon.delete_item(internal_id);
+  }
+}
+
+module.exports.updateItem = function(item, options) {
+
+  options = options || {};
+
+  if (!item.id) {
+    throw new Error('integer id is required');
+  }
+
+  var internal_id = module.exports.getInternalId(item.id);
+
+  //var configuration = module.exports.getConfiguration();
+  //var faceted_fields = _.keys(configuration.aggregations);
+
+  addon.delete_item(internal_id);
+  addon.index({
+    json_object: [item],
+    faceted_fields: options.faceted_fields,
+    append: true
+  });
+}
+
+module.exports.partialUpdateItem = function(id, item, options) {
+
+  options = options || {};
+
+  var internal_id = module.exports.getInternalId(id);
+
+  var old_item = module.exports.getItemByPkey(id);
+
+
+  addon.delete_item(internal_id);
+  addon.index({
+    json_object: [_.assign(old_item, item)],
+    faceted_fields: options.faceted_fields,
+    append: true
+  });
 }
 
 module.exports.deleteConfiguration = function(configuration) {
@@ -216,6 +260,11 @@ module.exports.getFilterIndexes = function() {
   return output;
 }
 
+module.exports.getItemByPkey = function(id) {
+  var internal_id = module.exports.getInternalId(id);
+  return module.exports.getItem(internal_id);
+}
+
 module.exports.getItem = function(id) {
 
   var dbi_items = env.openDbi({
@@ -230,8 +279,13 @@ module.exports.getItem = function(id) {
   var binary = txn.getBinary(dbi_items, new Buffer.from(id + ''));
   txn.abort();
   dbi_items.close();
-  var json = JSON.parse(binary.toString());
 
+
+  if (!binary) {
+    return;
+  }
+
+  var json = JSON.parse(binary.toString());
 
   return json;
 }
@@ -251,8 +305,13 @@ module.exports.getItems = function(ids) {
   ids.forEach(id => {
 
     var binary = txn.getBinary(dbi_items, new Buffer.from(id + ''));
-    var json = JSON.parse(binary.toString());
-    output.push(json);
+
+    if (binary) {
+      var json = JSON.parse(binary.toString());
+      output.push(json);
+    } else {
+
+    }
   })
 
   txn.abort();

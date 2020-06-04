@@ -405,7 +405,9 @@ void itemsjs::delete_item(int id) {
 
   // deleting internal id referencing to user pkey
   dbi_pkeys.del(wtxn, string_id.c_str());
-  //dbi_items.del(wtxn, string_id.c_str());
+
+  // deleting data
+  dbi_items.del(wtxn, string_id.c_str());
 
   wtxn.commit();
 }
@@ -502,9 +504,9 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   for (simdjson::dom::element item : items) {
 
     string sv = simdjson::minify(item);
-    string name = to_string(id) + "";
-    //dbi.put(wtxn, name.c_str(), sv.c_str());
-    dbi_items.put(wtxn, name.c_str(), sv.c_str());
+    string string_id = to_string(id) + "";
+    //dbi.put(wtxn, string_id.c_str(), sv.c_str());
+    dbi_items.put(wtxn, string_id.c_str(), sv.c_str());
 
     simdjson::error_code error;
     uint64_t value;
@@ -512,7 +514,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
     if (!error) {
       string pkey(to_string(value));
-      dbi_pkeys.put(wtxn, name.c_str(), pkey.c_str());
+      dbi_pkeys.put(wtxn, pkey.c_str(), string_id.c_str());
     }
 
     ids.add(id);

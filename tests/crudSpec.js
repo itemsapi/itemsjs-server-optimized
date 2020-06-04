@@ -34,7 +34,7 @@ describe('delete items', function() {
     var ids = storage.getIdsBitmap();
     assert.deepEqual(ids.size, 20);
 
-    //console.log(storage.getItem(1));
+    assert.deepEqual(1, storage.getItem(1).id);
 
     var filter_index = storage.getFilterIndex('genres.Drama');
     assert.deepEqual(15, filter_index.size);
@@ -48,7 +48,7 @@ describe('delete items', function() {
     var index = storage.getSearchTermIndex('golden');
     assert.deepEqual(2, index.size);
 
-    storage.delete_item(1);
+    storage.deleteItem(1);
 
     var ids = storage.getIdsBitmap();
     assert.deepEqual(ids.size, 19);
@@ -71,6 +71,8 @@ describe('delete items', function() {
 
     assert.equal(undefined, storage.getInternalId(1));
 
+    assert.deepEqual(undefined, storage.getItem(1));
+
     done();
   })
 
@@ -78,7 +80,7 @@ describe('delete items', function() {
   it('deletes all', function test(done) {
 
     for (var i = 1 ; i <= 20 ; ++i) {
-      storage.delete_item(i);
+      storage.deleteItem(i);
     }
 
     var ids = storage.getIdsBitmap();
@@ -96,3 +98,74 @@ describe('delete items', function() {
 
 })
 
+describe('update items', function() {
+
+  before(function(done) {
+    storage.dropDB();
+    done();
+  });
+
+  it('checks index after update', function test(done) {
+
+    var index = addon.index({
+      json_object: data,
+      faceted_fields: ['actors', 'genres', 'year', 'director'],
+      append: false
+    });
+
+    storage.updateItem({
+      id: 1,
+      name: 'Tom & Jerry'
+    }, {
+      faceted_fields: ['actors', 'genres', 'year', 'director']
+    });
+
+
+    var ids = storage.getIdsBitmap();
+    //console.log(ids.toArray())
+    assert.deepEqual(ids.size, 20);
+    assert.deepEqual(1, storage.getItem(21).id);
+    assert.deepEqual('Tom & Jerry', storage.getItem(21).name);
+    assert.deepEqual(1, storage.getItemByPkey(1).id);
+    assert.deepEqual(undefined, storage.getItemByPkey(1).year);
+
+    done();
+  })
+})
+
+describe('update items partially', function() {
+
+  before(function(done) {
+    storage.dropDB();
+    done();
+  });
+
+  it('checks index after update', function test(done) {
+
+    var index = addon.index({
+      json_object: data,
+      faceted_fields: ['actors', 'genres', 'year', 'director'],
+      append: false
+    });
+
+    storage.partialUpdateItem(1, {
+      name: 'Tom & Jerry'
+    }, {
+      faceted_fields: ['actors', 'genres', 'year', 'director']
+    });
+
+    var ids = storage.getIdsBitmap();
+    assert.deepEqual(ids.size, 20);
+    assert.deepEqual(1, storage.getItem(21).id);
+    assert.deepEqual('Tom & Jerry', storage.getItem(21).name);
+    assert.deepEqual(1, storage.getItemByPkey(1).id);
+    assert.deepEqual(1994, storage.getItemByPkey(1).year);
+    assert.deepEqual(['Crime', 'Drama'], storage.getItemByPkey(1).genres);
+
+    var filter_index = storage.getFilterIndex('genres.Drama');
+    assert.deepEqual(15, filter_index.size);
+
+
+    done();
+  })
+})
