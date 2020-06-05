@@ -19,6 +19,25 @@ module.exports = function itemsjs() {
       facets.index(data);
     },
 
+    get_item: function(id) {
+      return storage.getItemByPkey(id);
+    },
+
+    update_item: function(data) {
+      facets.update_item(data);
+    },
+
+    delete_item: function(id) {
+      storage.deleteItem(id);
+    },
+
+    partial_update_item: function(id, data) {
+
+      console.log(id);
+      console.log(typeof id);
+      facets.partial_update_item(id, data);
+    },
+
     /**
      * put settings
      */
@@ -58,9 +77,6 @@ module.exports = function itemsjs() {
       return lib.search(input, configuration, facets);
     },
 
-    /**
-     * @TODO
-     */
     aggregation: function aggregation(input) {
 
       configuration = storage.getConfiguration();

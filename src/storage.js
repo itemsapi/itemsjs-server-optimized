@@ -54,8 +54,9 @@ module.exports.updateItem = function(item, options) {
 
   var internal_id = module.exports.getInternalId(item.id);
 
-  //var configuration = module.exports.getConfiguration();
-  //var faceted_fields = _.keys(configuration.aggregations);
+  if (!internal_id) {
+    throw new Error(`Not found item by primary key "${id}"`);
+  }
 
   addon.delete_item(internal_id);
   addon.index({
@@ -73,6 +74,9 @@ module.exports.partialUpdateItem = function(id, item, options) {
 
   var old_item = module.exports.getItemByPkey(id);
 
+  if (!internal_id) {
+    throw new Error(`Not found item by primary key "${id}"`);
+  }
 
   addon.delete_item(internal_id);
   addon.index({
