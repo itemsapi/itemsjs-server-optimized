@@ -184,7 +184,6 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
     not_ids = temp_not_ids;
   }
 
-
   // intersection in native cpp is 2.5 x faster than in js
   start = std::chrono::high_resolution_clock::now();
   int i = 0;
@@ -464,7 +463,7 @@ void itemsjs::load_sort_index(std::vector<std::string> &sorting_fields) {
 }
 
 
-std::vector<int> itemsjs::sort_index(Roaring ids, std::string field, std::string order, int offset, int limit) {
+std::vector<int> itemsjs::sort_index(const Roaring &ids, std::string field, std::string order, int offset, int limit) {
 
   std::vector<int> sorted_ids;
 
@@ -502,7 +501,7 @@ std::vector<int> itemsjs::sort_index(Roaring ids, std::string field, std::string
 }
 
 
-std::string itemsjs::index(string json_path, string json_string, vector<string> &faceted_fields, std::vector<std::string> &sorting_fields, bool append = true) {
+std::string itemsjs::index(string json_path, const string& json_string, vector<string> &faceted_fields, std::vector<std::string> &sorting_fields, bool append = true) {
 
   map<string_view, map<string_view, Roaring>> roar;
   //map<string_view, Roaring> search_roar;
@@ -1068,8 +1067,20 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
 
   } else if (first.Has("json_string")) {
 
-    Napi::Value json_string = first.Get("json_string");
-    string json_string_string(json_string.ToString());
+    string json_string_string;
+
+    if (first.Get("json_string").IsBuffer()) {
+
+      Napi::Buffer<char> buffer = first.Get("json_string").As<Napi::Buffer<char>>();
+
+      string_view asdf (buffer.Data(), buffer.Length());
+      json_string_string = asdf;
+
+    } else {
+
+      Napi::Value json_string = first.Get("json_string");
+      json_string_string = json_string.ToString();
+    }
 
     returnValue = Napi::String::New(env, itemsjs::index("", json_string_string, faceted_fields_array, sorting_fields_array, append));
   }

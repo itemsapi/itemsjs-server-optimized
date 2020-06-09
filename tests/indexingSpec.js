@@ -190,5 +190,20 @@ describe('indexing', function() {
 
     done();
   })
+
+  it('checks index creating from buffer', function test(done) {
+
+    storage.dropDB();
+    var index = addon.index({
+      json_string: Buffer.from(JSON.stringify(data), 'utf-8'),
+      faceted_fields: ['category', 'actors', 'tags'],
+      append: false
+    });
+
+    var item = storage.getItem(1);
+    assert.deepEqual(item.name, 'movie1');
+
+    done();
+  })
 })
 

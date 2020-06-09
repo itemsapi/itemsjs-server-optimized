@@ -7,8 +7,8 @@ namespace itemsjs {
 
   std::string hello();
   //std::string index(std::string filename);
-  std::string index(std::string json_path, std::string json_string, std::vector<std::string> &faceted_fields, std::vector<std::string> &sorting_fields, bool append);
-  std::vector<int> sort_index(Roaring ids, std::string field, std::string order, int offset, int limit);
+  std::string index(std::string json_path, const std::string& json_string, std::vector<std::string> &faceted_fields, std::vector<std::string> &sorting_fields, bool append);
+  std::vector<int> sort_index(const Roaring &ids, std::string field, std::string order, int offset, int limit);
   void load_sort_index(std::vector<std::string> &sorting_fields);
   std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> search_facets(nlohmann::json input, nlohmann::json filters_array, nlohmann::json conf, nlohmann::json facets_fields, std::optional<Roaring> query_ids);
   void delete_item(int id);
