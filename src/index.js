@@ -3,7 +3,6 @@ const _ = require('lodash');
 const helpers = require('./helpers2');
 const Facets = require('./facets');
 const storage = require('./storage');
-const addon = require('bindings')('itemsjs_addon.node');
 
 module.exports = function itemsjs() {
 
@@ -19,6 +18,10 @@ module.exports = function itemsjs() {
       facets.index(data);
     },
 
+    load_sort_index: function() {
+      facets.load_sort_index();
+    },
+
     get_item: function(id) {
       return storage.getItemByPkey(id);
     },
@@ -32,9 +35,6 @@ module.exports = function itemsjs() {
     },
 
     partial_update_item: function(id, data) {
-
-      console.log(id);
-      console.log(typeof id);
       facets.partial_update_item(id, data);
     },
 

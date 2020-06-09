@@ -14,6 +14,8 @@
 #include "lmdb2++.h"
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/bimap.hpp>
+#include <boost/bimap/multiset_of.hpp>
 #include "json.hpp"
 //https://github.com/gabime/spdlog
 
@@ -263,7 +265,6 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
   return {output.dump(), ids, not_ids};
 }
 
-
 void itemsjs::delete_item(int id) {
   auto env = lmdb::env::create();
   env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
@@ -412,9 +413,109 @@ void itemsjs::delete_item(int id) {
   wtxn.commit();
 }
 
-std::vector<int> lista;
 
-std::string itemsjs::index(string json_path, string json_string, vector<string> &faceted_fields, bool append = true) {
+std::vector<int> lista;
+map<string, map<string, double>> sorting;
+//typedef boost::bimap<boost::bimaps::set_of<int>, boost::bimaps::multiset_of<double>> results_bimap;
+typedef boost::bimap<int, boost::bimaps::multiset_of<double>> results_bimap;
+typedef results_bimap::value_type position;
+
+map<string, results_bimap> sorting2;
+
+
+
+void itemsjs::load_sort_index(std::vector<std::string> &sorting_fields) {
+
+  sorting2.clear();
+
+  auto env = lmdb::env::create();
+  env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL);
+  env.set_max_dbs(20);
+  env.open("./example.mdb", 0, 0664);
+
+  auto rtxn = lmdb::txn::begin(env, nullptr, MDB_RDONLY);
+
+  std::map<string, lmdb::dbi> sorting_dbs;
+
+  for(const auto & field : sorting_fields) {
+    string name = "sorting_" + field;
+
+    //sorting_dbs[field] = lmdb::dbi::open(rtxn, name.c_str(), MDB_CREATE);
+
+    //terminate called after throwing an instance of 'lmdb::not_found_error'
+    //what():  mdb_dbi_open: MDB_NOTFOUND: No matching key/data pair found
+
+    try {
+      //int result = lmdb::dbi::open(rtxn, name.c_str());
+      //sorting_dbs[field] = lmdb::dbi::open(rtxn, name.c_str(), MDB_CREATE);
+      sorting_dbs[field] = lmdb::dbi::open(rtxn, name.c_str());
+      auto cursor = lmdb::cursor::open(rtxn, sorting_dbs[field]);
+      std::string_view key, value;
+
+      while (cursor.get(key, value, MDB_NEXT)) {
+        double val = std::stod ((string)value);
+        int id = std::stoi ((string)(key));
+
+        sorting2[field].insert(position(id, (double) val));
+      }
+    }
+    catch (lmdb::not_found_error) {
+    }
+    catch (...) {
+      //std::cerr << "Unknown exception caught\n";
+    }
+  }
+}
+
+
+std::vector<int> itemsjs::sort_index(Roaring ids, std::string field, std::string order, int offset, int limit) {
+
+  std::vector<int> sorted_ids;
+
+  // display all sorted values
+  for (auto it = sorting2[field].right.begin(); it != sorting2[field].right.end(); ++it) {
+    std::cout << it->first << "-->" << it->second << std::endl;
+  }
+
+  /*for (auto it = sorting2[field].left.begin(); it != sorting2[field].left.end(); ++it) {
+    std::cout << it->first << "-->" << it->second << std::endl;
+  }*/
+
+  // lambda allows for bidirectional iteration
+  auto loop = [&ids, &sorted_ids, &offset, &limit](auto begin, auto end)
+  {
+    int i = 0;
+    int j = 0;
+    for (auto it = begin; it != end; ++it) {
+
+      if (ids.contains(it->second)) {
+        //std::cout << it->first << "-->" << it->second << std::endl;
+
+        if (j >= offset) {
+          sorted_ids.push_back(it->second);
+          ++i;
+        }
+
+        ++j;
+
+        if (i >= limit) {
+          break;
+        }
+      }
+    }
+  };
+
+  if (order == "asc") {
+    loop(sorting2[field].right.begin(), sorting2[field].right.end());
+  } else if (order == "desc") {
+    loop(sorting2[field].right.rbegin(), sorting2[field].right.rend());
+  }
+
+  return sorted_ids;
+}
+
+
+std::string itemsjs::index(string json_path, string json_string, vector<string> &faceted_fields, std::vector<std::string> &sorting_fields, bool append = true) {
 
   map<string_view, map<string_view, Roaring>> roar;
   //map<string_view, Roaring> search_roar;
@@ -495,7 +596,17 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   auto dbi_pkeys = lmdb::dbi::open(wtxn, "pkeys", MDB_CREATE);
   auto dbi_items = lmdb::dbi::open(wtxn, "items", MDB_CREATE);
 
+  //lmdb::dbi sorting_items = lmdb::dbi::open(wtxn, "sorting", MDB_CREATE);
+
   start = std::chrono::high_resolution_clock::now();
+
+  std::map<string, lmdb::dbi> sorting_dbs;
+
+  for(const auto & field : sorting_fields) {
+    string name = "sorting_" + field;
+
+    sorting_dbs[field] = lmdb::dbi::open(wtxn, name.c_str(), MDB_CREATE);
+  }
 
   /**
    * write items to db
@@ -516,6 +627,30 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
       string pkey(to_string(value));
       dbi_pkeys.put(wtxn, pkey.c_str(), string_id.c_str());
     }
+
+
+    cout << "will add sorting fields" << endl;
+    for(const auto & field : sorting_fields) {
+
+      simdjson::error_code error;
+      double value;
+      item.at_key(field).get<double>().tie(value, error);
+
+      cout << string_id << " " << field << " " << value << endl;
+
+      if (!error) {
+        string val(to_string(value));
+        sorting_dbs[field].put(wtxn, string_id.c_str(), val.c_str());
+        cout << id << " " << string_id << " " << field << " " << value << endl;
+        sorting2[field].insert(position(id, value));
+
+        for (auto it = sorting2[field].right.begin(); it != sorting2[field].right.end(); ++it) {
+          std::cout << it->first << "-->" << it->second << std::endl;
+        }
+
+      }
+    }
+
 
     ids.add(id);
     ++id;
@@ -724,7 +859,7 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
     // ignore long key like
     //✯✯✯✯✯reviews
-    //term|||✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱ᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇᴇ
+    //term|||✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱ᴇᴇᴇᴇᴇᴇ......
 
     dbi_terms.put(wtxn, name, nowy);
     delete serializedbytes;
@@ -769,6 +904,26 @@ void itemsjs::DeleteItemWrapped(const Napi::CallbackInfo& info) {
 
   auto id = info[0].As<Napi::Number>().Uint32Value();
   itemsjs::delete_item(id);
+}
+
+void itemsjs::LoadSortIndexWrapped(const Napi::CallbackInfo& info) {
+
+  Napi::Array first = info[0].As<Napi::Array>();
+
+  vector<string> sorting_fields_array;
+
+  if (first.IsArray()) {
+
+    for (unsigned int i = 0 ; i < first.Length() ; ++i) {
+
+      Napi::Value element = first.Get(to_string(i));
+      string v = element.ToString();
+
+      sorting_fields_array.push_back(v);
+    }
+  }
+
+  itemsjs::load_sort_index(sorting_fields_array);
 }
 
 Napi::Object itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {
@@ -858,21 +1013,37 @@ Napi::String itemsjs::JsonAtWrapped(const Napi::CallbackInfo& info) {
   return returnValue;
 }
 
+Napi::TypedArrayOf<uint32_t> itemsjs::SortIndexWrapped(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  Napi::Buffer<char> buffer = info[0].As<Napi::Buffer<char>>();
+  Roaring ids = Roaring::read(buffer.Data());
+
+  Napi::String field = info[1].As<Napi::String>();
+  Napi::String order = info[2].As<Napi::String>();
+  auto offset = info[3].As<Napi::Number>().Uint32Value();
+  auto limit = info[4].As<Napi::Number>().Uint32Value();
+
+  std::vector<int> sorted_ids = sort_index(ids, field, order, offset, limit);
+
+  Napi::TypedArrayOf<uint32_t> array2 = Napi::TypedArrayOf<uint32_t>::New(env, sorted_ids.size());
+
+  for (size_t i=0; i < sorted_ids.size(); i++) {
+    array2[i] = sorted_ids[i];
+  }
+
+  //Napi::Array array = Napi::Array::New(env, 1);
+
+  return array2;
+}
+
 Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
   Napi::Object first = info[0].As<Napi::Object>();
-  //string nowy(first);
-  //cout << first << endl;
-  //cout << nowy << endl;
-
-  //cout << first.Has("json_path") << endl;
-  //cout << first.Has("json_object") << endl;
-  //cout << first.Has("json_string") << endl;
 
   Napi::String returnValue;
   string json_string;
-
 
   vector<string> faceted_fields_array;
   Napi::Value faceted_fields_value = first.Get("faceted_fields");
@@ -889,25 +1060,29 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
     }
   }
 
-  //cout << faceted_fields.IsArray() << endl;
-  //cout << faceted_fields.Length() << endl;
-  //cout << faceted_fields.Get("0").IsString() << endl;
-  //cout << faceted_fields.Get("0").ToString() << endl;
-  //cout << faceted_fields.Get("1").As<Napi::String>() << endl;
+  vector<string> sorting_fields_array;
+  Napi::Value sorting_fields_value = first.Get("sorting_fields");
+
+  if (sorting_fields_value.IsArray()) {
+    Napi::Array sorting_fields = sorting_fields_value.As<Napi::Array>();
+
+    for (unsigned int i = 0 ; i < sorting_fields.Length() ; ++i) {
+
+      Napi::Value element = sorting_fields.Get(to_string(i));
+      string v = element.ToString();
+
+      sorting_fields_array.push_back(v);
+    }
+  }
 
   bool append = true;
   Napi::Value append_value = first.Get("append");
 
-  //Napi::Boolean append_value2 = append_value.As<Napi::Boolean>();
-  //cout << "append " << append_value2 << endl;
-
   if (append_value.IsBoolean() and (bool) append_value.As<Napi::Boolean>() == false) {
-    //Napi::Boolean append_value2 = append_value.As<Napi::Boolean>();
     append = false;
   }
 
   cout << "append " << append << endl;
-
 
   if (first.Has("json_object")) {
 
@@ -917,21 +1092,21 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
     Napi::Function stringify = json.Get("stringify").As<Napi::Function>();
     string json_string =  stringify.Call(json, { json_object }).As<Napi::String>();
 
-    returnValue = Napi::String::New(env, itemsjs::index("", json_string, faceted_fields_array, append));
+    returnValue = Napi::String::New(env, itemsjs::index("", json_string, faceted_fields_array, sorting_fields_array, append));
 
   } else if (first.Has("json_path")) {
 
     Napi::Value json_path = first.Get("json_path");
     string json_path_string(json_path.ToString());
 
-    returnValue = Napi::String::New(env, itemsjs::index(json_path_string, "", faceted_fields_array, append));
+    returnValue = Napi::String::New(env, itemsjs::index(json_path_string, "", faceted_fields_array, sorting_fields_array, append));
 
   } else if (first.Has("json_string")) {
 
     Napi::Value json_string = first.Get("json_string");
     string json_string_string(json_string.ToString());
 
-    returnValue = Napi::String::New(env, itemsjs::index("", json_string_string, faceted_fields_array, append));
+    returnValue = Napi::String::New(env, itemsjs::index("", json_string_string, faceted_fields_array, sorting_fields_array, append));
   }
 
   return returnValue;
@@ -940,6 +1115,8 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
 Napi::Object itemsjs::Init(Napi::Env env, Napi::Object exports) {
   exports.Set("hello", Napi::Function::New(env, itemsjs::HelloWrapped));
   exports.Set("delete_item", Napi::Function::New(env, itemsjs::DeleteItemWrapped));
+  exports.Set("sort_index", Napi::Function::New(env, itemsjs::SortIndexWrapped));
+  exports.Set("load_sort_index", Napi::Function::New(env, itemsjs::LoadSortIndexWrapped));
   exports.Set("index", Napi::Function::New(env, itemsjs::IndexWrapped));
   exports.Set("search_facets", Napi::Function::New(env, itemsjs::SearchFacetsWrapped));
   exports.Set("json", Napi::Function::New(env, itemsjs::JsonWrapped));

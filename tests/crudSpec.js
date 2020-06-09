@@ -28,6 +28,7 @@ describe('delete items', function() {
     var index = addon.index({
       json_object: data,
       faceted_fields: ['actors', 'genres', 'year', 'director'],
+      sorting_fields: ['votes', 'rating'],
       append: false
     });
 
@@ -47,6 +48,8 @@ describe('delete items', function() {
 
     var index = storage.getSearchTermIndex('golden');
     assert.deepEqual(2, index.size);
+
+    assert.deepEqual(1790841, storage.getSortingValue('votes', 1));
 
     storage.deleteItem(1);
 
@@ -72,6 +75,9 @@ describe('delete items', function() {
     assert.equal(undefined, storage.getInternalId(1));
 
     assert.deepEqual(undefined, storage.getItem(1));
+
+    // @TODO should be deleted
+    //assert.deepEqual(undefined, storage.getSortingValue('votes', 1));
 
     done();
   })
@@ -110,14 +116,17 @@ describe('update items', function() {
     var index = addon.index({
       json_object: data,
       faceted_fields: ['actors', 'genres', 'year', 'director'],
+      sorting_fields: ['votes', 'rating'],
       append: false
     });
 
     storage.updateItem({
       id: 1,
+      votes: 100,
       name: 'Tom & Jerry'
     }, {
-      faceted_fields: ['actors', 'genres', 'year', 'director']
+      faceted_fields: ['actors', 'genres', 'year', 'director'],
+      sorting_fields: ['votes', 'rating']
     });
 
 
@@ -128,6 +137,7 @@ describe('update items', function() {
     assert.deepEqual('Tom & Jerry', storage.getItem(21).name);
     assert.deepEqual(1, storage.getItemByPkey(1).id);
     assert.deepEqual(undefined, storage.getItemByPkey(1).year);
+    assert.deepEqual(100, storage.getSortingValue('votes', 21));
 
     done();
   })
