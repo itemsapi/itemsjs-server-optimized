@@ -368,15 +368,10 @@ module.exports.getIdsBitmap = function() {
   });
 
   var binary = txn.getBinary(dbi, new Buffer.from('ids'));
-
-  //console.log('binary');
-  //console.log(binary);
   txn.abort();
-
 
   if (!binary) {
     throw new Error('Not found ids bitmap');
-
   }
 
   var bitmap = RoaringBitmap32.deserialize(binary, true);

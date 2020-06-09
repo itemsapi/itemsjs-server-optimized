@@ -66,7 +66,6 @@ Facets.prototype = {
     var configuration = this.configuration();
     if (configuration.sorting_fields && Array.isArray(configuration.sorting_fields)) {
       addon.load_sort_index(configuration.sorting_fields);
-      console.log('sort index loaded');
     }
   },
 

@@ -41,7 +41,6 @@ std::string itemsjs::json_at(string json_path, int i) {
   items = parser.load(json_path);
 
   simdjson::dom::element first = items.at(i);
-  //std::cout << first << std::endl;
   string sv = simdjson::minify(first);
   return sv;
 }
@@ -50,8 +49,6 @@ std::string itemsjs::json_at(string json_path, int i) {
  * native version of faceted search
  */
 std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs::search_facets(nlohmann::json input, nlohmann::json filters_array, nlohmann::json config, nlohmann::json facets_fields, std::optional<Roaring> query_ids) {
-
-  cout << "start searching facets in native cpp" << endl;
 
   // @TODO make unordered
   std::map<string, std::map<string, Roaring>> filters_indexes;
@@ -182,9 +179,6 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
       checked = true;
     }
   }
-
-  //cout << "not ids" << endl;
-  //cout << temp_not_ids.cardinality() << endl;
 
   if (checked) {
     not_ids = temp_not_ids;
@@ -456,7 +450,9 @@ void itemsjs::load_sort_index(std::vector<std::string> &sorting_fields) {
         double val = std::stod ((string)value);
         int id = std::stoi ((string)(key));
 
+        // only add
         sorting2[field].insert(position(id, (double) val));
+        //sorting2[field].left[id] = val;
       }
     }
     catch (lmdb::not_found_error) {
@@ -471,15 +467,6 @@ void itemsjs::load_sort_index(std::vector<std::string> &sorting_fields) {
 std::vector<int> itemsjs::sort_index(Roaring ids, std::string field, std::string order, int offset, int limit) {
 
   std::vector<int> sorted_ids;
-
-  // display all sorted values
-  for (auto it = sorting2[field].right.begin(); it != sorting2[field].right.end(); ++it) {
-    std::cout << it->first << "-->" << it->second << std::endl;
-  }
-
-  /*for (auto it = sorting2[field].left.begin(); it != sorting2[field].left.end(); ++it) {
-    std::cout << it->first << "-->" << it->second << std::endl;
-  }*/
 
   // lambda allows for bidirectional iteration
   auto loop = [&ids, &sorted_ids, &offset, &limit](auto begin, auto end)
@@ -568,11 +555,6 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
     }
   }
 
-  //cout << "starting id: " << starting_id << endl;
-
-
-
-
   //string filename = "/home/mateusz/node/items-benchmark/datasets/shoprank_full.json";
 
   simdjson::dom::parser parser;
@@ -628,26 +610,21 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
       dbi_pkeys.put(wtxn, pkey.c_str(), string_id.c_str());
     }
 
-
-    cout << "will add sorting fields" << endl;
     for(const auto & field : sorting_fields) {
 
       simdjson::error_code error;
       double value;
       item.at_key(field).get<double>().tie(value, error);
 
-      cout << string_id << " " << field << " " << value << endl;
-
       if (!error) {
         string val(to_string(value));
         sorting_dbs[field].put(wtxn, string_id.c_str(), val.c_str());
-        cout << id << " " << string_id << " " << field << " " << value << endl;
+
+        // this is insert or update sort index value
+        sorting2[field].left.erase(id);
         sorting2[field].insert(position(id, value));
-
-        for (auto it = sorting2[field].right.begin(); it != sorting2[field].right.end(); ++it) {
-          std::cout << it->first << "-->" << it->second << std::endl;
-        }
-
+        // does not work with right map
+        //sorting2[field].left[id] = value;
       }
     }
 
@@ -785,11 +762,11 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
     for (auto [key, value] : item) {
 
+      (void)key;
+
       if (value.type() == simdjson::dom::element_type::ARRAY) {
 
         for (auto filter : value) {
-
-          //cout << filter.type() << endl;
 
           if (filter.type() == simdjson::dom::element_type::STRING) {
 
@@ -848,9 +825,6 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
       }
     }
 
-
-    //cout << key << endl;
-    //cout << roar_object.cardinality() << endl;
     int expectedsize = roar_object.getSizeInBytes();
 
     char *serializedbytes = new char [expectedsize];
@@ -874,12 +848,10 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
   elapsed = std::chrono::high_resolution_clock::now() - start;
   std::cout << "search terms commit time: " << elapsed.count() / 1000000<< std::endl;
 
-  cout << "finished indexing" << endl;
-
 
   // global variable
   lista.push_back(1);
-  cout << "lista size: " << lista.size() << endl;
+  cout << "finished indexing, lista size: " << lista.size() << endl;
 
   env.close();
 
