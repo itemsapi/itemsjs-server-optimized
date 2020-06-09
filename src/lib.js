@@ -1,7 +1,7 @@
 const _ = require('lodash');
 const helpers2 = require('./helpers2');
 const storage = require('./storage');
-const algo = require('./algo');
+const addon = require('bindings')('itemsjs_addon.node');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 
 /**
@@ -12,9 +12,12 @@ module.exports.search = function(input, configuration, facets) {
 
   input = input || {};
 
+  //console.log(input);
+
   var per_page = parseInt(input.per_page || 12);
   var page = parseInt(input.page || 1);
   var order = input.order;
+  var sort_field = input.sort_field;
   var query_ids;
   var search_time = new Date().getTime();
   var total_time = new Date().getTime();
@@ -77,19 +80,27 @@ module.exports.search = function(input, configuration, facets) {
    * sorting items
    */
   var sorting_time = 0;
-  if (order === 'desc') {
 
-    var sorting_start_time = new Date().getTime();
+  var sorting_start_time = new Date().getTime();
+  if (!sort_field) {
+    if (order === 'desc') {
+
+      var size = filtered_indexes_bitmap.size;
+      new_items_indexes = filtered_indexes_bitmap.rangeUint32Array(Math.max(0, size - page * per_page), per_page);
+      new_items_indexes = new_items_indexes.reverse();
+    }
+
+    if (!new_items_indexes) {
+      new_items_indexes = filtered_indexes_bitmap.rangeUint32Array((page - 1) * per_page, per_page);
+    }
+  } else {
+
     var size = filtered_indexes_bitmap.size;
-    new_items_indexes = filtered_indexes_bitmap.rangeUint32Array(Math.max(0, size - page * per_page), per_page);
-    new_items_indexes = new_items_indexes.reverse();
-
-    sorting_time = new Date().getTime() - sorting_start_time;
+    var time = new Date().getTime();
+    new_items_indexes = addon.sort_index(filtered_indexes_bitmap.serialize(true), sort_field, order, (page - 1) * per_page, per_page);
+    console.log(`sort time: ${new Date().getTime() - time}`);
   }
-
-  if (!new_items_indexes) {
-    new_items_indexes = filtered_indexes_bitmap.rangeUint32Array((page - 1) * per_page, per_page);
-  }
+  sorting_time = new Date().getTime() - sorting_start_time;
 
   var new_items = storage.getItems(new_items_indexes);
   facets_ids_time = new Date().getTime() - facets_ids_time;
@@ -114,7 +125,7 @@ module.exports.search = function(input, configuration, facets) {
       total: total_time,
       sort: sort_time,
       facets: new_facet_time,
-      filters: facets_ids_time,
+      //filters: facets_ids_time,
       search: search_time,
       sorting: sorting_time
     },

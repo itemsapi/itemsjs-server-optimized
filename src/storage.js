@@ -62,6 +62,7 @@ module.exports.updateItem = function(item, options) {
   addon.index({
     json_object: [item],
     faceted_fields: options.faceted_fields,
+    sorting_fields: options.sorting_fields,
     append: true
   });
 }
@@ -82,6 +83,7 @@ module.exports.partialUpdateItem = function(id, item, options) {
   addon.index({
     json_object: [_.assign(old_item, item)],
     faceted_fields: options.faceted_fields,
+    sorting_fields: options.sorting_fields,
     append: true
   });
 }
@@ -146,6 +148,28 @@ module.exports.getInternalId = function(id) {
   }
 }
 
+module.exports.getSortingValue = function(field, internal_id) {
+
+  var dbi_sorting = env.openDbi({
+    name: 'sorting_' + field,
+    create: true
+  })
+
+  var txn = env.beginTxn({
+    readonly: true
+  });
+
+  var binary = txn.getBinary(dbi_sorting, new Buffer.from('' + internal_id));
+  txn.abort();
+  dbi_sorting.close();
+
+
+  if (binary) {
+    var string = binary.toString();
+
+    return string;
+  }
+}
 
 module.exports.getKeysList = function() {
 
@@ -345,6 +369,11 @@ module.exports.getIdsBitmap = function() {
 
   var binary = txn.getBinary(dbi, new Buffer.from('ids'));
   txn.abort();
+
+  if (!binary) {
+    throw new Error('Not found ids bitmap');
+  }
+
   var bitmap = RoaringBitmap32.deserialize(binary, true);
 
 

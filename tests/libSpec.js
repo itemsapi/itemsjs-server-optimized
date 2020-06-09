@@ -7,28 +7,24 @@ const lib = require('./../src/lib');
 const items = require('./fixtures/items.json');
 var facets = new Facets();
 
-var configuration = {
-  aggregations: {
-    tags: {
-      title: 'Tags',
-      conjunction: true,
-    },
-    actors: {
-      title: 'Actors',
-      conjunction: true,
-    },
-    category: {
-      title: 'Category',
-      conjunction: true,
+xdescribe('search', function() {
+
+  var configuration = {
+    aggregations: {
+      tags: {
+        conjunction: true,
+      },
+      actors: {
+        conjunction: true,
+      },
+      category: {
+        conjunction: true,
+      }
     }
   }
-}
-
-describe('search', function() {
 
   before(function(done) {
     storage.dropDB();
-    storage.deleteConfiguration();
     facets.index({
       json_object: items,
       configuration: configuration
@@ -111,5 +107,67 @@ describe('search', function() {
     done();
   })
 
+})
+
+describe('movies search', function() {
+
+  var configuration = {
+    aggregations: {
+      director: {
+        conjunction: true,
+      },
+      actors: {
+        conjunction: true,
+      },
+      genres: {
+        conjunction: true,
+      },
+      tags: {
+        conjunction: true,
+      },
+      country: {
+        conjunction: true,
+      }
+    }
+  }
+
+  before(function(done) {
+    storage.dropDB();
+    facets.index({
+      json_path: './tests/fixtures/movies.json',
+      faceted_fields: ['actors', 'genres', 'year', 'director'],
+      sorting_fields: ['votes', 'year'],
+      configuration: configuration
+    });
+    done();
+  });
+
+  it('search with sorting', function test(done) {
+
+    var input = {
+      per_page: 5,
+      sort_field: 'year',
+      order: 'asc'
+    }
+
+    var result = lib.search(input, configuration, facets);
+    console.log(result.data.items.map(v => {
+      return {
+        name: v.name, year: v.year
+      }
+    }));
+    assert.deepEqual(1957, result.data.items[0].year);
+
+    var input = {
+      per_page: 5,
+      sort_field: 'year',
+      order: 'desc'
+    }
+
+    var result = lib.search(input, configuration, facets);
+    assert.deepEqual(2016, result.data.items[0].year);
+
+    done();
+  })
 })
 

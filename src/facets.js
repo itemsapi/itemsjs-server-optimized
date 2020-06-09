@@ -39,6 +39,8 @@ Facets.prototype = {
       data.faceted_fields = _.keys(configuration.aggregations);
     }
 
+    data.sorting_fields = configuration.sorting_fields ? configuration.sorting_fields : [];
+
     storage.partialUpdateItem(id, item, data);
   },
 
@@ -54,7 +56,17 @@ Facets.prototype = {
       data.faceted_fields = _.keys(configuration.aggregations);
     }
 
+    data.sorting_fields = configuration.sorting_fields ? configuration.sorting_fields : [];
+
     storage.updateItem(item, data);
+  },
+
+  load_sort_index: function() {
+
+    var configuration = this.configuration();
+    if (configuration.sorting_fields && Array.isArray(configuration.sorting_fields)) {
+      addon.load_sort_index(configuration.sorting_fields);
+    }
   },
 
   index: function(data) {
@@ -74,6 +86,10 @@ Facets.prototype = {
 
     if (configuration.aggregations) {
       data.faceted_fields = _.keys(configuration.aggregations);
+    }
+
+    if (configuration.sorting_fields && Array.isArray(configuration.sorting_fields)) {
+      data.sorting_fields  = configuration.sorting_fields;
     }
 
     addon.index(data);
