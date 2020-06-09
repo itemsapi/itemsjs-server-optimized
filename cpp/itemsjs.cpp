@@ -60,7 +60,7 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
   auto env = lmdb::env::create();
   env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL);
   env.set_max_dbs(20);
-  env.open("./example.mdb", 0, 0664);
+  env.open("./db.mdb", 0, 0664);
 
   auto rtxn = lmdb::txn::begin(env, nullptr, MDB_RDONLY);
   auto dbi = lmdb::dbi::open(rtxn, "filters");
@@ -263,7 +263,7 @@ void itemsjs::delete_item(int id) {
   auto env = lmdb::env::create();
   env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
   env.set_max_dbs(20);
-  env.open("./example.mdb", 0, 0664);
+  env.open("./db.mdb", 0, 0664);
 
   typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
   auto wtxn = lmdb::txn::begin(env);
@@ -425,7 +425,7 @@ void itemsjs::load_sort_index(std::vector<std::string> &sorting_fields) {
   auto env = lmdb::env::create();
   env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL);
   env.set_max_dbs(20);
-  env.open("./example.mdb", 0, 0664);
+  env.open("./db.mdb", 0, 0664);
 
   auto rtxn = lmdb::txn::begin(env, nullptr, MDB_RDONLY);
 
@@ -516,27 +516,20 @@ std::string itemsjs::index(string json_path, string json_string, vector<string> 
 
   typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
 
+  //system( "rm -rf ./db.mdb/*" );
 
-
-
-
-
-
-
-  //system( "rm -rf ./example.mdb/*" );
-
-  //if (!fs::is_directory("example.mdb") || !fs::exists("example.mdb")) {
-    //fs::create_directory("example.mdb");
+  //if (!fs::is_directory("db.mdb") || !fs::exists("example.mdb")) {
+    //fs::create_directory("db.mdb");
   //}
 
   //fs::create_directory("aha");
   //fs::create_directory("./aha");
-  //fs::create_directory("./example.mdb");
+  //fs::create_directory("./db.mdb");
 
   auto env = lmdb::env::create();
   env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
   env.set_max_dbs(20);
-  env.open("./example.mdb", 0, 0664);
+  env.open("./db.mdb", 0, 0664);
 
   if (append) {
     // local scope

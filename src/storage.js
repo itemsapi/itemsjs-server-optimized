@@ -5,8 +5,7 @@ const _ = require('lodash');
 
 const env = new lmdb.Env();
 env.open({
-  //path: './db.mdb',
-  path: './example.mdb',
+  path: './db.mdb',
   mapSize: 100 * 1024 * 1024 * 1024,
   maxReaders: 10,
   //noTls: true,
@@ -25,6 +24,7 @@ module.exports.dropDB = function() {
     create: false
   });
 
+  // @TODO reset sorting dbs
   ['filters', 'terms', 'items', 'pkeys'].forEach(v => {
     var dbi2 = env.openDbi({
       name: v,
