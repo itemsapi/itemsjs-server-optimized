@@ -2,6 +2,12 @@ const lmdb = require('node-lmdb');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 const addon = require('bindings')('itemsjs_addon.node');
 const _ = require('lodash');
+const fs = require('fs');
+const dir = './db.mdb';
+
+if (!fs.existsSync(dir)){
+  fs.mkdirSync(dir);
+}
 
 const env = new lmdb.Env();
 env.open({
