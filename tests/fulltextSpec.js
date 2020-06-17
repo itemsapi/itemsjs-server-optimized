@@ -6,6 +6,7 @@ const Facets = require('./../src/facets');
 const data = require('./fixtures/items.json');
 const movies = require('./fixtures/movies.json');
 const addon = require('bindings')('itemsjs_addon.node');
+const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 
 var facets;
 
@@ -47,6 +48,30 @@ describe('proximity search', function() {
     var result = facets.proximity_search(input);
 
     assert.deepEqual(result.toArray(), [1]);
+
+    done();
+  })
+
+  it('returns empty bitmap if empty query', function test(done) {
+
+    var input = {
+    }
+
+    var result = facets.proximity_search(input);
+
+    assert.deepEqual(result.toArray(), []);
+
+    done();
+  })
+
+  it('returns empty bitmap if empty query and not empty query_ids', function test(done) {
+
+    var input = {
+    }
+
+    var result = facets.proximity_search(input, new RoaringBitmap32([1]));
+
+    assert.deepEqual(result.toArray(), []);
 
     done();
   })

@@ -28,6 +28,7 @@ module.exports.search = function(input, configuration, facets) {
 
   if (input.query) {
     query_ids = facets.fulltext(input);
+    //query_ids = facets.proximity_search(input);
     //console.log(query_ids);
   }
 
@@ -80,32 +81,35 @@ module.exports.search = function(input, configuration, facets) {
 
   var new_items_indexes;
 
+  var proximity_ids_bitmap = facets.proximity_search(input, filtered_indexes_bitmap);
+  var total = filtered_indexes_bitmap.size;
+
+  if (proximity_ids_bitmap.size) {
+    filtered_indexes_bitmap = RoaringBitmap32.andNot(filtered_indexes_bitmap, proximity_ids_bitmap);
+  }
+
   /**
    * sorting items
    */
   var sorting_time = 0;
 
   var sorting_start_time = new Date().getTime();
-  if (!sort_field) {
-    if (order === 'desc') {
 
-      var size = filtered_indexes_bitmap.size;
-      new_items_indexes = filtered_indexes_bitmap.rangeUint32Array(Math.max(0, size - page * per_page), per_page);
-      new_items_indexes = new_items_indexes.reverse();
-    }
+  var time = new Date().getTime();
+  new_items_indexes = facets.pagination_sort_ids(filtered_indexes_bitmap, sort_field, order, per_page, page);
+  console.log(`sort time: ${new Date().getTime() - time}`);
 
-    if (!new_items_indexes) {
-      new_items_indexes = filtered_indexes_bitmap.rangeUint32Array((page - 1) * per_page, per_page);
-    }
-  } else {
+  if (proximity_ids_bitmap.size) {
 
-    var size = filtered_indexes_bitmap.size;
-    var time = new Date().getTime();
-    new_items_indexes = addon.sort_index(filtered_indexes_bitmap.serialize(true), sort_field, order, (page - 1) * per_page, per_page);
-    console.log(`sort time: ${new Date().getTime() - time}`);
+    var proximity_ids = facets.pagination_sort_ids(proximity_ids_bitmap, sort_field, order, per_page, page)
+
+    // make proximity search results first
+    new_items_indexes = proximity_ids.concat(new_items_indexes);
+    // pagination again after proximity concatenation
+    new_items_indexes = new_items_indexes.slice((page - 1) * per_page, page * per_page);
   }
-  sorting_time = new Date().getTime() - sorting_start_time;
 
+  sorting_time = new Date().getTime() - sorting_start_time;
   var new_items = storage.getItems(new_items_indexes);
   facets_ids_time = new Date().getTime() - facets_ids_time;
   // -------------------------------------
@@ -123,7 +127,7 @@ module.exports.search = function(input, configuration, facets) {
     pagination: {
       per_page: per_page,
       page: page,
-      total: filtered_indexes_bitmap.size
+      total: total
     },
     timings: {
       total: total_time,

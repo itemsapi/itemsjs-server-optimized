@@ -134,6 +134,22 @@ Facets.prototype = {
   },
 
   /*
+   */
+  pagination_sort_ids: function(ids, sort_field, order, per_page, page) {
+
+    if (!sort_field) {
+      if (order === 'desc') {
+        return Array.from(ids.rangeUint32Array(Math.max(0, ids.size - page * per_page), per_page)).reverse();
+      } else {
+        return Array.from(ids.rangeUint32Array((page - 1) * per_page, per_page));
+      }
+
+    } else {
+      return Array.from(addon.sort_index(ids.serialize(true), sort_field, order, (page - 1) * per_page, per_page));
+    }
+  },
+
+  /*
    * makes proximity search using input bigrams
    */
   proximity_search: function(input, query_ids) {
@@ -144,12 +160,6 @@ Facets.prototype = {
     var bigrams = helpers2.bigrams(tokens);
 
     var bitmap = null;
-
-    if (query_ids) {
-
-      console.log('query ids');
-      bitmap = query_ids;
-    }
 
     bigrams.forEach(tokens => {
       var index = storage.getSearchTermIndex(tokens[0] + '_' + tokens[1]);
@@ -164,6 +174,10 @@ Facets.prototype = {
 
     if (bitmap === null) {
       return new RoaringBitmap32([]);
+    }
+
+    if (query_ids) {
+      bitmap = RoaringBitmap32.and(bitmap, query_ids);
     }
 
     return bitmap;
