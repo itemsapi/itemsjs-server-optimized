@@ -72,6 +72,10 @@ describe('delete items', function() {
     var index = storage.getSearchTermIndex('two');
     assert.deepEqual(8, index.size);
 
+    // proximity words (bigram)
+    var index = storage.getSearchTermIndex('long_term');
+    assert.deepEqual(undefined, index);
+
     assert.equal(undefined, storage.getInternalId(1));
 
     assert.deepEqual(undefined, storage.getItem(1));

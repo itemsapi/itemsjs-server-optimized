@@ -1,3 +1,7 @@
+/*
+ * Author: Mateusz Rzepa
+ * Copyright: 2015-2020, ItemsAPI
+ */
 const _ = require('lodash');
 const helpers2 = require('./helpers2');
 const storage = require('./storage');

@@ -1,3 +1,7 @@
+/*
+ * Author: Mateusz Rzepa
+ * Copyright: 2015-2020, ItemsAPI
+ */
 const lib = require('./lib');
 const _ = require('lodash');
 const helpers = require('./helpers2');
@@ -20,6 +24,10 @@ module.exports = function itemsjs() {
 
     load_sort_index: function() {
       facets.load_sort_index();
+    },
+
+    tokenize: function(query) {
+      return facets.query_parser2(query);
     },
 
     get_item: function(id) {

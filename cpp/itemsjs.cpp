@@ -1062,8 +1062,6 @@ Napi::TypedArrayOf<uint32_t> itemsjs::SortIndexWrapped(const Napi::CallbackInfo&
     array2[i] = sorted_ids[i];
   }
 
-  //Napi::Array array = Napi::Array::New(env, 1);
-
   return array2;
 }
 
