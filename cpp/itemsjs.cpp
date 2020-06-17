@@ -3,7 +3,6 @@
  * Copyright: 2015-2020, ItemsAPI
  */
 #include "itemsjs.h"
-//#include <iostream>
 #include "roaring.hh"
 #include "roaring.c"
 #include <chrono>
@@ -23,6 +22,8 @@
 //namespace fs = std::experimental::filesystem;
 
 using namespace std;
+
+const char *DELIMITERS = "!\"#$%&'()*+,-./:;<=>?@\[\\]^_`{|}~\n\v\f\r ";
 
 std::string itemsjs::hello(){
   return "hello";
@@ -265,6 +266,8 @@ void itemsjs::delete_item(int id) {
   env.open("./db.mdb", 0, 0664);
 
   typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
+  boost::char_separator<char> sep(DELIMITERS);
+
   auto wtxn = lmdb::txn::begin(env);
   auto dbi = lmdb::dbi::open(wtxn, nullptr);
   auto dbi_pkeys = lmdb::dbi::open(wtxn, "pkeys", MDB_CREATE);
@@ -291,6 +294,10 @@ void itemsjs::delete_item(int id) {
     simdjson::dom::object item2;
     item2 = item;
 
+    // @TODO
+    // abandon tokenizing item again instead use new
+    // item_terms bitmap indexes
+    // the same with item_filters indexes
     for (auto [key, value] : item2) {
 
       string name;
@@ -301,7 +308,8 @@ void itemsjs::delete_item(int id) {
           filters.emplace(field + "." + std::string(filter));
 
           string text = std::string(filter);
-          tokenizer tok{text};
+          tokenizer tok{text, sep};
+          string last;
 
           for (const auto &t : tok) {
 
@@ -309,6 +317,13 @@ void itemsjs::delete_item(int id) {
             boost::algorithm::to_lower(token2);
 
             terms.emplace(std::string(token2));
+
+            if (!last.empty()) {
+              string double_token = last + "_" + token2;
+              terms.emplace(double_token);
+            }
+
+            last = token2;
           }
         }
       }
@@ -321,14 +336,22 @@ void itemsjs::delete_item(int id) {
         filters.emplace(field + "." + std::string(value));
 
         string text = std::string(value);
-        tokenizer tok{text};
+        tokenizer tok{text, sep};
+        string last;
 
         for (const auto &t : tok) {
 
           string token2(t);
           boost::algorithm::to_lower(token2);
 
-          terms.emplace(std::string(token2));
+          terms.emplace(token2);
+
+          if (!last.empty()) {
+            string double_token = last + "_" + token2;
+            terms.emplace(double_token);
+          }
+
+          last = token2;
         }
       }
     }
@@ -362,7 +385,7 @@ void itemsjs::delete_item(int id) {
       Roaring ids;
       std::string_view val;
 
-      //cout << filter << endl;
+      cout << filter << endl;
 
 
       if (dbi_terms.get(wtxn, filter, val)) {
@@ -514,6 +537,7 @@ std::string itemsjs::index(string json_path, const string& json_string, vector<s
 
 
   typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
+  boost::char_separator<char> sep(DELIMITERS);
 
   //system( "rm -rf ./db.mdb/*" );
 
@@ -763,12 +787,20 @@ std::string itemsjs::index(string json_path, const string& json_string, vector<s
           if (filter.type() == simdjson::dom::element_type::STRING) {
 
             string_view filter2 (filter);
-            tokenizer tok{filter2};
+            string last;
+            tokenizer tok{filter2, sep};
             for (const auto &t : tok) {
-              string_view token1 (t);
-              string token2(token1);
+              string token2(t);
               boost::algorithm::to_lower(token2);
               search_roar[token2].add(id);
+
+              // proximity search with distance = 1
+              if (!last.empty()) {
+                string double_token = last + "_" + token2;
+                search_roar[double_token].add(id);
+              }
+
+              last = token2;
             }
           }
         }
@@ -777,14 +809,21 @@ std::string itemsjs::index(string json_path, const string& json_string, vector<s
       else if (value.type() == simdjson::dom::element_type::STRING) {
 
         string_view filter (value);
+        string last;
+        tokenizer tok{filter, sep};
 
-        tokenizer tok{filter};
         for (const auto &t : tok) {
-          string_view token1 (t);
-          string token2(token1);
+          string token2(t);
           boost::algorithm::to_lower(token2);
-
           search_roar[token2].add(id);
+
+          // proximity search with distance = 1
+          if (!last.empty()) {
+            string double_token = last + "_" + token2;
+            search_roar[double_token].add(id);
+          }
+
+          last = token2;
         }
       }
     }
@@ -862,6 +901,33 @@ Napi::String itemsjs::JsonWrapped(const Napi::CallbackInfo& info) {
   cout << json_string << endl;
   Napi::String returnValue = Napi::String::New(env, itemsjs::json());
   return returnValue;
+}
+
+Napi::Array itemsjs::TokenizeWrapped(const Napi::CallbackInfo& info) {
+
+  Napi::String query_input = info[0].As<Napi::String>();
+  string query (query_input);
+
+  typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
+  boost::char_separator<char> sep(DELIMITERS);
+
+  tokenizer tok{query, sep};
+  vector<string> tokens;
+
+  for (const auto &t : tok) {
+    string token2(t);
+    boost::algorithm::to_lower(token2);
+    tokens.emplace_back(token2);
+  }
+
+  Napi::Array output = Napi::Array::New(info.Env(), tokens.size());
+
+  uint32_t i = 0;
+  for (auto&& it : tokens) {
+    output[i++] = Napi::String::New(info.Env(), it);
+  }
+
+  return output;
 }
 
 void itemsjs::DeleteItemWrapped(const Napi::CallbackInfo& info) {
@@ -1003,6 +1069,7 @@ Napi::TypedArrayOf<uint32_t> itemsjs::SortIndexWrapped(const Napi::CallbackInfo&
 
 Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
+  Napi::HandleScope scope(env);
 
   Napi::Object first = info[0].As<Napi::Object>();
 
@@ -1071,13 +1138,24 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
 
     if (first.Get("json_string").IsBuffer()) {
 
+      // Todo delete buffer
+      // there is a memory leak
       Napi::Buffer<char> buffer = first.Get("json_string").As<Napi::Buffer<char>>();
 
       string_view asdf (buffer.Data(), buffer.Length());
       json_string_string = asdf;
 
+      //delete buffer.Data();
+      //(int*)std::realloc(buffer.Data(), buffer.Length());
+
+      /*int* test = new int(0xc);
+      buffer.AddFinalizer([](Napi::Env, buffer.Data()) {
+        cout << "finalier" << endl;
+      }, test);*/
+
     } else {
 
+      // there is no memory leak
       Napi::Value json_string = first.Get("json_string");
       json_string_string = json_string.ToString();
     }
@@ -1096,6 +1174,7 @@ Napi::Object itemsjs::Init(Napi::Env env, Napi::Object exports) {
   exports.Set("index", Napi::Function::New(env, itemsjs::IndexWrapped));
   exports.Set("search_facets", Napi::Function::New(env, itemsjs::SearchFacetsWrapped));
   exports.Set("json", Napi::Function::New(env, itemsjs::JsonWrapped));
+  exports.Set("tokenize", Napi::Function::New(env, itemsjs::TokenizeWrapped));
   exports.Set("json_at", Napi::Function::New(env, itemsjs::JsonAtWrapped));
   return exports;
 }
