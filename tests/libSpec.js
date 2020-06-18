@@ -7,7 +7,7 @@ const lib = require('./../src/lib');
 const items = require('./fixtures/items.json');
 var facets = new Facets();
 
-xdescribe('search', function() {
+describe('search', function() {
 
   var configuration = {
     aggregations: {
@@ -171,3 +171,46 @@ describe('movies search', function() {
   })
 })
 
+describe('proximity search', function() {
+
+  var configuration = {
+    aggregations: {
+    }
+  }
+
+  before(function(done) {
+    storage.dropDB();
+    facets.index({
+      json_path: './tests/fixtures/movies.json',
+      configuration: configuration
+    });
+    done();
+  });
+
+  it('search', function test(done) {
+
+    var input = {
+      per_page: 5,
+      query: 'shawshank redemption'
+    }
+
+    var result = lib.search(input, configuration, facets);
+    assert.deepEqual(result.data.items[0].name, 'The Shawshank Redemption');
+
+    done();
+  })
+
+  it('makes proximity search', function test(done) {
+
+    var input = {
+      per_page: 5,
+      query: 'in the'
+    }
+
+    var result = lib.search(input, configuration, facets);
+    //assert.deepEqual(result.pagination.total, 12);
+    assert.deepEqual(result.pagination.total, 18);
+
+    done();
+  })
+})

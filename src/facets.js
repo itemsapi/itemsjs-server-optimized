@@ -1,3 +1,8 @@
+/*
+ * Author: Mateusz Rzepa
+ * Copyright: 2015-2020, ItemsAPI
+ */
+// @TODO change file name from facets to index
 const _ = require('lodash');
 const helpers2 = require('./helpers2');
 const storage = require('./storage');
@@ -5,7 +10,6 @@ const algo = require('./algo');
 //const fs = require('fs-extra');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 const addon = require('bindings')('itemsjs_addon.node');
-
 
 /**
  * responsible for making faceted search
@@ -93,6 +97,7 @@ Facets.prototype = {
     }
 
     addon.index(data);
+    //delete data.json_string;
   },
 
   get_index: function() {
@@ -107,15 +112,75 @@ Facets.prototype = {
     return storage.getConfiguration();
   },
 
+
   /*
    * split query for normalized tokens
    */
   query_parser: function(query) {
 
     return query.split(' ')
+    .filter(v => !!v)
     .map(v => {
       return v.trim().toLowerCase();
     })
+  },
+
+  /*
+   * split query for normalized tokens
+   */
+  query_parser2: function(query) {
+
+    return addon.tokenize(query);
+  },
+
+  /*
+   */
+  pagination_sort_ids: function(ids, sort_field, order, per_page, page) {
+
+    if (!sort_field) {
+      if (order === 'desc') {
+        return Array.from(ids.rangeUint32Array(Math.max(0, ids.size - page * per_page), per_page)).reverse();
+      } else {
+        return Array.from(ids.rangeUint32Array((page - 1) * per_page, per_page));
+      }
+
+    } else {
+      return Array.from(addon.sort_index(ids.serialize(true), sort_field, order, (page - 1) * per_page, per_page));
+    }
+  },
+
+  /*
+   * makes proximity search using input bigrams
+   */
+  proximity_search: function(input, query_ids) {
+    var query = input.query || '';
+
+    var tokens = this.query_parser2(query);
+
+    var bigrams = helpers2.bigrams(tokens);
+
+    var bitmap = null;
+
+    bigrams.forEach(tokens => {
+      var index = storage.getSearchTermIndex(tokens[0] + '_' + tokens[1]);
+      if (index) {
+        if (!bitmap) {
+          bitmap = index;
+        } else {
+          bitmap = RoaringBitmap32.and(index, bitmap);
+        }
+      }
+    })
+
+    if (bitmap === null) {
+      return new RoaringBitmap32([]);
+    }
+
+    if (query_ids) {
+      bitmap = RoaringBitmap32.and(bitmap, query_ids);
+    }
+
+    return bitmap;
   },
 
   /*
@@ -125,7 +190,7 @@ Facets.prototype = {
 
     var query = input.query || '';
 
-    var tokens = this.query_parser(query);
+    var tokens = this.query_parser2(query);
 
     // and
     var bitmap = null;

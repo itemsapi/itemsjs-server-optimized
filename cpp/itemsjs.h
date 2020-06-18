@@ -1,3 +1,7 @@
+/*
+ * Author: Mateusz Rzepa
+ * Copyright: 2015-2020, ItemsAPI
+ */
 #include <napi.h>
 #include <string>
 #include "json.hpp"
@@ -22,6 +26,7 @@ namespace itemsjs {
   Napi::Object SearchFacetsWrapped(const Napi::CallbackInfo& info);
   Napi::String JsonAtWrapped(const Napi::CallbackInfo& info);
   Napi::String JsonWrapped(const Napi::CallbackInfo& info);
+  Napi::Array TokenizeWrapped(const Napi::CallbackInfo& info);
 
   Napi::Object Init(Napi::Env env, Napi::Object exports);
 

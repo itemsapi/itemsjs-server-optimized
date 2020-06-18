@@ -1,3 +1,7 @@
+/*
+ * Author: Mateusz Rzepa
+ * Copyright: 2015-2020, ItemsAPI
+ */
 const _ = require('lodash');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 
@@ -351,7 +355,6 @@ const facets_intersection = function(data, ids) {
       return intersection(v2, ids);
     })
   })
-
 }
 
 const getBuckets = function(data, input, aggregations) {
@@ -401,7 +404,6 @@ const getBuckets = function(data, input, aggregations) {
   })
 }
 
-
 const parse_filter_key = function(key) {
 
   var array = key.split(/\.(.+)/);
@@ -411,15 +413,23 @@ const parse_filter_key = function(key) {
   return [key1, key2];
 }
 
+const bigrams = function(list) {
+
+  var res = [];
+  for (var i = 0 ; i < list.length - 1 ; ++i) {
+    res.push([list[i], list[i+1]]);
+  }
+  return res;
+}
 
 
 module.exports.mergeAggregations = mergeAggregations;
 module.exports.parse_filter_key = parse_filter_key;
-exports.uniq_merge_sorted_arrays = uniq_merge_sorted_arrays;
+module.exports.uniq_merge_sorted_arrays = uniq_merge_sorted_arrays;
 module.exports.intersection = intersection2;
 module.exports.facets_ids = ids;
+module.exports.bigrams = bigrams;
 module.exports.combination = combination;
 module.exports.index = findex;
 module.exports.getBuckets = getBuckets;
 module.exports.getFacets = getBuckets;
-
