@@ -153,8 +153,9 @@ module.exports.search = function(input, configuration, facets) {
 module.exports.aggregation = function (input, configuration, facets) {
   var per_page = input.per_page || 10;
   var page = input.page || 1;
+  var query = input.query;
 
-  console.log(configuration);
+  //console.log(configuration);
 
   if (input.name && (!configuration.aggregations || !configuration.aggregations[input.name])) {
     throw new Error("Please define aggregation \"".concat(input.name, "\" in config"));
@@ -173,6 +174,13 @@ module.exports.aggregation = function (input, configuration, facets) {
 
   var result = module.exports.search(search_input, configuration, facets);
   var buckets = result.data.aggregations[input.name].buckets;
+
+  if (query) {
+    buckets = buckets.filter(v => {
+      var key = v.key.toLowerCase();
+      return helpers2.wildcard_search(key, query);
+    });
+  }
 
   return {
     pagination: {

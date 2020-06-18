@@ -21,5 +21,17 @@ describe('helpers', function() {
 
     done();
   })
+
+  it('makes wildcard string test', function test(done) {
+
+    assert.deepEqual(helper.wildcard_search('action', 'act*'), 1);
+    assert.deepEqual(helper.wildcard_search('action', 'acto*'), 0);
+    assert.deepEqual(helper.wildcard_search('action', '*cti*'), 1);
+    assert.deepEqual(helper.wildcard_search('action', 'action'), 1);
+    assert.deepEqual(helper.wildcard_search('action', 'actio'), 0);
+    assert.deepEqual(helper.wildcard_search('action', 'ACTION'), 0);
+
+    done();
+  })
 })
 
