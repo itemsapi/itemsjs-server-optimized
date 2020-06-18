@@ -101,7 +101,9 @@ module.exports.search = function(input, configuration, facets) {
 
   if (proximity_ids_bitmap.size) {
 
+    var time = new Date().getTime();
     var proximity_ids = facets.pagination_sort_ids(proximity_ids_bitmap, sort_field, order, per_page, page)
+    console.log(`sort 2 time: ${new Date().getTime() - time}`);
 
     // make proximity search results first
     new_items_indexes = proximity_ids.concat(new_items_indexes);
