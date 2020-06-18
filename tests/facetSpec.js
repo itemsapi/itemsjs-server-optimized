@@ -89,5 +89,47 @@ describe('aggregation / facet', function() {
 
     done();
   })
+
+  it('makes single facet with query', function test(done) {
+
+    var result = lib.aggregation({
+      name: 'genres',
+      page: 1,
+      query: 'action',
+      per_page: 12
+    }, configuration, facets);
+
+    assert.equal(result.data.buckets.length, 1);
+
+    done();
+  })
+
+  it('makes single facet with wildcard query', function test(done) {
+
+    var result = lib.aggregation({
+      name: 'genres',
+      page: 1,
+      query: 'acti*',
+      per_page: 12
+    }, configuration, facets);
+
+    assert.equal(result.data.buckets.length, 1);
+
+    done();
+  })
+
+  it('makes single facet with wildcard query 2', function test(done) {
+
+    var result = lib.aggregation({
+      name: 'genres',
+      page: 1,
+      query: '*ctio*',
+      per_page: 12
+    }, configuration, facets);
+
+    assert.equal(result.data.buckets.length, 1);
+
+    done();
+  })
 })
 

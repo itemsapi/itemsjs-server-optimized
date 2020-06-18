@@ -422,7 +422,12 @@ const bigrams = function(list) {
   return res;
 }
 
+const wildcard_search = function (str, rule) {
+  var escapeRegex = (str) => str.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
+  return new RegExp("^" + rule.split("*").map(escapeRegex).join(".*") + "$").test(str);
+}
 
+module.exports.wildcard_search = wildcard_search;
 module.exports.mergeAggregations = mergeAggregations;
 module.exports.parse_filter_key = parse_filter_key;
 module.exports.uniq_merge_sorted_arrays = uniq_merge_sorted_arrays;
