@@ -104,7 +104,7 @@ Facets.prototype = {
     }*/
 
 
-    if (1 || configuration.async_indexing === true) {
+    if (configuration.async_indexing === true) {
       console.log(`async indexing`);
       await addon.indexAsync(data);
     } else {
