@@ -16,14 +16,25 @@
 #include <boost/bimap.hpp>
 #include <boost/bimap/multiset_of.hpp>
 #include "json.hpp"
-//https://github.com/gabime/spdlog
+#include <thread>
+#include <mutex>
 
-//#include <experimental/filesystem>
-//namespace fs = std::experimental::filesystem;
+#include "napi-thread-safe-callback.hpp"
+
+//https://github.com/gabime/spdlog
 
 using namespace std;
 
 const char *DELIMITERS = "!\"#$%&'()*+,-./:;<=>?@\[\\]^_`{|}~\n\v\f\r ";
+unsigned int WRITER_FLAGS = MDB_NOSYNC | MDB_WRITEMAP | MDB_MAPASYNC | MDB_NOMETASYNC | MDB_NORDAHEAD;
+//unsigned int WRITER_FLAGS = 0;
+
+// mutex is used so MDB_NOTLS not needed
+unsigned int READER_FLAGS = MDB_NOTLS;
+//unsigned int READER_FLAGS = 0;
+
+
+std::mutex super_mutex;
 
 std::string itemsjs::hello(){
   return "hello";
@@ -61,7 +72,7 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
   auto env = lmdb::env::create();
   env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL);
   env.set_max_dbs(20);
-  env.open("./db.mdb", 0, 0664);
+  env.open("./db.mdb", READER_FLAGS, 0664);
 
   auto rtxn = lmdb::txn::begin(env, nullptr, MDB_RDONLY);
   auto dbi = lmdb::dbi::open(rtxn, "filters");
@@ -259,14 +270,99 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
   return {output.dump(), ids, not_ids};
 }
 
-void itemsjs::delete_item(int id) {
-  auto env = lmdb::env::create();
-  env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
-  env.set_max_dbs(20);
-  env.open("./db.mdb", 0, 0664);
+// @TODO
+// better to extend lmdb class
+bool db_put_roaring(auto &db, MDB_txn* const txn, const std::string_view key, Roaring &ids, const unsigned int flags = 0) {
+
+  int expectedsize = ids.getSizeInBytes();
+  char *serializedbytes = new char [expectedsize];
+  ids.write(serializedbytes);
+  std::string_view nowy(serializedbytes, expectedsize);
+
+  bool result = db.put(txn, key, nowy);
+  delete serializedbytes;
+  return result;
+}
+
+std::tuple<std::set<string>, std::set<string>> tokenize_item(simdjson::dom::object &item) {
 
   typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
   boost::char_separator<char> sep(DELIMITERS);
+
+  std::set<string> filters;
+  std::set<string> terms;
+
+  for (auto [key, value] : item) {
+
+    string name;
+    string field(key);
+
+    if (value.type() == simdjson::dom::element_type::ARRAY) {
+      for (auto&& filter : value) {
+        filters.emplace(field + "." + std::string(filter));
+
+        string text = std::string(filter);
+        tokenizer tok{text, sep};
+        string last;
+
+        for (const auto &t : tok) {
+
+          string token2(t);
+          boost::algorithm::to_lower(token2);
+
+          terms.emplace(std::string(token2));
+
+          if (!last.empty()) {
+            string double_token = last + "_" + token2;
+            terms.emplace(double_token);
+          }
+
+          last = token2;
+        }
+      }
+    }
+
+    else if (value.type() == simdjson::dom::element_type::INT64) {
+      filters.emplace(field + "." + std::string(to_string(int64_t(value))));
+    }
+
+    else if (value.type() == simdjson::dom::element_type::STRING) {
+      filters.emplace(field + "." + std::string(value));
+
+      string text = std::string(value);
+      tokenizer tok{text, sep};
+      string last;
+
+      for (const auto &t : tok) {
+
+        string token2(t);
+        boost::algorithm::to_lower(token2);
+
+        terms.emplace(token2);
+
+        if (!last.empty()) {
+          string double_token = last + "_" + token2;
+          terms.emplace(double_token);
+        }
+
+        last = token2;
+      }
+    }
+  }
+
+  return {filters, terms};
+}
+
+void itemsjs::delete_item(int id) {
+
+  const std::lock_guard<std::mutex> lock(super_mutex);
+
+  auto env = lmdb::env::create();
+  env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
+  env.set_max_dbs(20);
+
+  env.open("./db.mdb", WRITER_FLAGS, 0664);
+  //env.set_flags();
 
   auto wtxn = lmdb::txn::begin(env);
   auto dbi = lmdb::dbi::open(wtxn, nullptr);
@@ -276,8 +372,8 @@ void itemsjs::delete_item(int id) {
   auto dbi_items = lmdb::dbi::open(wtxn, "items", MDB_CREATE);
 
   simdjson::dom::parser parser;
-  std::set<string> filters;
-  std::set<string> terms;
+  //std::set<string> filters;
+  //std::set<string> terms;
 
   std::string_view val;
 
@@ -294,67 +390,7 @@ void itemsjs::delete_item(int id) {
     simdjson::dom::object item2;
     item2 = item;
 
-    // @TODO
-    // abandon tokenizing item again instead use new
-    // item_terms bitmap indexes
-    // the same with item_filters indexes
-    for (auto [key, value] : item2) {
-
-      string name;
-      string field(key);
-
-      if (value.type() == simdjson::dom::element_type::ARRAY) {
-        for (auto&& filter : value) {
-          filters.emplace(field + "." + std::string(filter));
-
-          string text = std::string(filter);
-          tokenizer tok{text, sep};
-          string last;
-
-          for (const auto &t : tok) {
-
-            string token2(t);
-            boost::algorithm::to_lower(token2);
-
-            terms.emplace(std::string(token2));
-
-            if (!last.empty()) {
-              string double_token = last + "_" + token2;
-              terms.emplace(double_token);
-            }
-
-            last = token2;
-          }
-        }
-      }
-
-      else if (value.type() == simdjson::dom::element_type::INT64) {
-        filters.emplace(field + "." + std::string(to_string(int64_t(value))));
-      }
-
-      else if (value.type() == simdjson::dom::element_type::STRING) {
-        filters.emplace(field + "." + std::string(value));
-
-        string text = std::string(value);
-        tokenizer tok{text, sep};
-        string last;
-
-        for (const auto &t : tok) {
-
-          string token2(t);
-          boost::algorithm::to_lower(token2);
-
-          terms.emplace(token2);
-
-          if (!last.empty()) {
-            string double_token = last + "_" + token2;
-            terms.emplace(double_token);
-          }
-
-          last = token2;
-        }
-      }
-    }
+    auto [filters, terms] = tokenize_item(item2);
 
     // deleting or decreasing filters index
     for (auto&& filter : filters) {
@@ -366,12 +402,7 @@ void itemsjs::delete_item(int id) {
         ids.remove(id);
 
         if (ids.cardinality()) {
-          int expectedsize = ids.getSizeInBytes();
-          char *serializedbytes = new char [expectedsize];
-          ids.write(serializedbytes);
-          std::string_view nowy(serializedbytes, expectedsize);
-          dbi_filters.put(wtxn, filter, nowy);
-          delete serializedbytes;
+          db_put_roaring(dbi_filters, wtxn, filter, ids);
         } else {
           dbi_filters.del(wtxn, filter);
         }
@@ -385,20 +416,12 @@ void itemsjs::delete_item(int id) {
       Roaring ids;
       std::string_view val;
 
-      cout << filter << endl;
-
-
       if (dbi_terms.get(wtxn, filter, val)) {
         ids = Roaring::read(val.data());
         ids.remove(id);
 
         if (ids.cardinality()) {
-          int expectedsize = ids.getSizeInBytes();
-          char *serializedbytes = new char [expectedsize];
-          ids.write(serializedbytes);
-          std::string_view nowy(serializedbytes, expectedsize);
-          dbi_terms.put(wtxn, filter, nowy);
-          delete serializedbytes;
+          db_put_roaring(dbi_terms, wtxn, filter, ids);
         } else {
           dbi_terms.del(wtxn, filter);
         }
@@ -412,12 +435,7 @@ void itemsjs::delete_item(int id) {
   if (dbi.get(wtxn, "ids", last_ids)) {
     ids = Roaring::read(last_ids.data());
     ids.remove(id);
-    int expectedsize = ids.getSizeInBytes();
-    char *serializedbytes = new char [expectedsize];
-    ids.write(serializedbytes);
-    std::string_view nowy(serializedbytes, expectedsize);
-    dbi.put(wtxn, "ids", nowy);
-    delete serializedbytes;
+    db_put_roaring(dbi, wtxn, "ids", ids);
   }
 
   // deleting internal id referencing to user pkey
@@ -489,19 +507,20 @@ void itemsjs::load_sort_index(std::vector<std::string> &sorting_fields) {
 std::vector<int> itemsjs::sort_index(const Roaring &ids, std::string field, std::string order, int offset, int limit) {
 
   std::vector<int> sorted_ids;
+  std::set<int> found_ids;
 
   // lambda allows for bidirectional iteration
-  auto loop = [&ids, &sorted_ids, &offset, &limit](auto begin, auto end)
+  auto loop = [&ids, &sorted_ids, &found_ids, &field, &offset, &limit](auto begin, auto end)
   {
     int i = 0;
     int j = 0;
     for (auto it = begin; it != end; ++it) {
 
       if (ids.contains(it->second)) {
-        //std::cout << it->first << "-->" << it->second << std::endl;
 
         if (j >= offset) {
           sorted_ids.push_back(it->second);
+          //found_ids.emplace(it->second);
           ++i;
         }
 
@@ -512,6 +531,35 @@ std::vector<int> itemsjs::sort_index(const Roaring &ids, std::string field, std:
         }
       }
     }
+
+
+    // @TODO
+    // add missing ids with NULL values to the end
+    /*if (ids.cardinality() > sorted_ids.size() and i < limit and j < (int) ids.cardinality()) {
+
+      //cout << field << " " << ids.cardinality() << " " << sorted_ids.size() << " " << i << " " << j << " " << limit << " there is a place to add more ids" << endl;
+
+      int i = 0;
+      //int j = 0;
+      for(const auto & id : ids) {
+
+        //cout << id << endl;
+
+        if (!found_ids.count(id)) {
+
+          //if (j >= offset) {
+            sorted_ids.push_back(id);
+            ++i;
+          //}
+
+          //++j;
+
+          if (i >= limit) {
+            break;
+          }
+        }
+      }
+    }*/
   };
 
   if (order == "asc") {
@@ -523,8 +571,45 @@ std::vector<int> itemsjs::sort_index(const Roaring &ids, std::string field, std:
   return sorted_ids;
 }
 
+/**
+ * it is used for making concurrency test with threading
+ * one open lmdb writer globally is possible
+ */
+std::string concurrency_test() {
 
-std::string itemsjs::index(string json_path, const string& json_string, vector<string> &faceted_fields, std::vector<std::string> &sorting_fields, bool append = true) {
+  // thanks to that we are sure there is only one lmdb writer
+  const std::lock_guard<std::mutex> lock(super_mutex);
+
+  auto env = lmdb::env::create();
+  env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL);
+  env.set_max_dbs(1000);
+  env.open("./db.mdb", WRITER_FLAGS, 0664);
+
+  auto wtxn = lmdb::txn::begin(env);
+  auto dbi = lmdb::dbi::open(wtxn, "concurrency_test", MDB_CREATE);
+
+  Roaring ids;
+
+  for (int i = 1 ; i < 10000 ; ++i ) {
+    ids.add(i);
+  }
+
+  db_put_roaring(dbi, wtxn, "ids", ids);
+
+  cout << "put data" << endl;
+  wtxn.commit();
+
+  env.close();
+
+  return "result cncn";
+}
+
+
+std::string itemsjs::index(const string& json_path, const string& json_string, const vector<string> faceted_fields, const std::vector<std::string> sorting_fields, bool append = true) {
+
+  const std::lock_guard<std::mutex> lock(super_mutex);
+
+  auto start_all = std::chrono::high_resolution_clock::now();
 
   map<string_view, map<string_view, Roaring>> roar;
   //map<string_view, Roaring> search_roar;
@@ -535,24 +620,10 @@ std::string itemsjs::index(string json_path, const string& json_string, vector<s
   Roaring ids;
   int starting_id = 1;
 
-
-  typedef boost::tokenizer<boost::char_separator<char>> tokenizer;
-  boost::char_separator<char> sep(DELIMITERS);
-
-  //system( "rm -rf ./db.mdb/*" );
-
-  //if (!fs::is_directory("db.mdb") || !fs::exists("example.mdb")) {
-    //fs::create_directory("db.mdb");
-  //}
-
-  //fs::create_directory("aha");
-  //fs::create_directory("./aha");
-  //fs::create_directory("./db.mdb");
-
   auto env = lmdb::env::create();
   env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
   env.set_max_dbs(20);
-  env.open("./db.mdb", 0, 0664);
+  env.open("./db.mdb", WRITER_FLAGS, 0664);
 
   if (append) {
     // local scope
@@ -653,12 +724,7 @@ std::string itemsjs::index(string json_path, const string& json_string, vector<s
   /**
    * write ids to db
    */
-  int expectedsize = ids.getSizeInBytes();
-  char *serializedbytes = new char [expectedsize];
-  ids.write(serializedbytes);
-  std::string_view nowy(serializedbytes, expectedsize);
-  dbi.put(wtxn, "ids", nowy);
-  delete serializedbytes;
+  db_put_roaring(dbi, wtxn, "ids", ids);
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
   std::cout << "items put time: " << elapsed.count() / 1000000<< std::endl;
@@ -743,15 +809,7 @@ std::string itemsjs::index(string json_path, const string& json_string, vector<s
         }
       }
 
-
-      int expectedsize = roar_object.getSizeInBytes();
-
-      char *serializedbytes = new char [expectedsize];
-      roar_object.write(serializedbytes);
-      std::string_view nowy(serializedbytes, expectedsize);
-
-      dbi_filters.put(wtxn, name, nowy);
-      delete serializedbytes;
+      db_put_roaring(dbi_filters, wtxn, name, roar_object);
     }
   }
 
@@ -776,56 +834,12 @@ std::string itemsjs::index(string json_path, const string& json_string, vector<s
   id = starting_id;
   for (simdjson::dom::object item : items) {
 
-    for (auto [key, value] : item) {
+    auto [filters, terms] = tokenize_item(item);
 
-      (void)key;
+    (void) filters;
 
-      if (value.type() == simdjson::dom::element_type::ARRAY) {
-
-        for (auto filter : value) {
-
-          if (filter.type() == simdjson::dom::element_type::STRING) {
-
-            string_view filter2 (filter);
-            string last;
-            tokenizer tok{filter2, sep};
-            for (const auto &t : tok) {
-              string token2(t);
-              boost::algorithm::to_lower(token2);
-              search_roar[token2].add(id);
-
-              // proximity search with distance = 1
-              if (!last.empty()) {
-                string double_token = last + "_" + token2;
-                search_roar[double_token].add(id);
-              }
-
-              last = token2;
-            }
-          }
-        }
-      }
-
-      else if (value.type() == simdjson::dom::element_type::STRING) {
-
-        string_view filter (value);
-        string last;
-        tokenizer tok{filter, sep};
-
-        for (const auto &t : tok) {
-          string token2(t);
-          boost::algorithm::to_lower(token2);
-          search_roar[token2].add(id);
-
-          // proximity search with distance = 1
-          if (!last.empty()) {
-            string double_token = last + "_" + token2;
-            search_roar[double_token].add(id);
-          }
-
-          last = token2;
-        }
-      }
+    for (auto&& term : terms) {
+      search_roar[term].add(id);
     }
 
     ++id;
@@ -856,18 +870,10 @@ std::string itemsjs::index(string json_path, const string& json_string, vector<s
       }
     }
 
-    int expectedsize = roar_object.getSizeInBytes();
-
-    char *serializedbytes = new char [expectedsize];
-    roar_object.write(serializedbytes);
-    std::string_view nowy(serializedbytes, expectedsize);
-
     // ignore long key like
     //✯✯✯✯✯reviews
     //term|||✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱ᴇᴇᴇᴇᴇᴇ......
-
-    dbi_terms.put(wtxn, name, nowy);
-    delete serializedbytes;
+    db_put_roaring(dbi_terms, wtxn, name, roar_object);
   }
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
@@ -885,6 +891,9 @@ std::string itemsjs::index(string json_path, const string& json_string, vector<s
   cout << "finished indexing, lista size: " << lista.size() << endl;
 
   env.close();
+
+  auto elapsed_all = std::chrono::high_resolution_clock::now() - start_all;
+  std::cout << "time index whole block: " << elapsed_all.count() / 1000000<< std::endl;
 
   return "index";
 }
@@ -1029,6 +1038,10 @@ Napi::Object itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {
   return obj;
 }
 
+Napi::String TestWrapped(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  return Napi::String::New(env, "test");
+}
 
 Napi::String itemsjs::JsonAtWrapped(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
@@ -1039,8 +1052,6 @@ Napi::String itemsjs::JsonAtWrapped(const Napi::CallbackInfo& info) {
   Napi::String json_path = info[0].As<Napi::String>();
   Napi::Number at = info[1].As<Napi::Number>();
   return Napi::String::New(env, itemsjs::json_at(json_path, at));
-
-  return returnValue;
 }
 
 Napi::TypedArrayOf<uint32_t> itemsjs::SortIndexWrapped(const Napi::CallbackInfo& info) {
@@ -1070,9 +1081,6 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
   Napi::HandleScope scope(env);
 
   Napi::Object first = info[0].As<Napi::Object>();
-
-  Napi::String returnValue;
-  string json_string;
 
   vector<string> faceted_fields_array;
   Napi::Value faceted_fields_value = first.Get("faceted_fields");
@@ -1113,63 +1121,194 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
 
   cout << "append " << append << endl;
 
+  string json_string;
+  string json_path;
+
   if (first.Has("json_object")) {
 
     Napi::Value json_object = first.Get("json_object");
 
     Napi::Object json = env.Global().Get("JSON").As<Napi::Object>();
     Napi::Function stringify = json.Get("stringify").As<Napi::Function>();
-    string json_string =  stringify.Call(json, { json_object }).As<Napi::String>();
-
-    returnValue = Napi::String::New(env, itemsjs::index("", json_string, faceted_fields_array, sorting_fields_array, append));
+    json_string = stringify.Call(json, { json_object }).As<Napi::String>();
 
   } else if (first.Has("json_path")) {
 
-    Napi::Value json_path = first.Get("json_path");
-    string json_path_string(json_path.ToString());
-
-    returnValue = Napi::String::New(env, itemsjs::index(json_path_string, "", faceted_fields_array, sorting_fields_array, append));
+    json_path = first.Get("json_path").ToString();
 
   } else if (first.Has("json_string")) {
 
-    string json_string_string;
-
     if (first.Get("json_string").IsBuffer()) {
 
-      // Todo delete buffer
+      // @todo delete buffer
       // there is a memory leak
       Napi::Buffer<char> buffer = first.Get("json_string").As<Napi::Buffer<char>>();
 
       string_view asdf (buffer.Data(), buffer.Length());
-      json_string_string = asdf;
-
-      //delete buffer.Data();
-      //(int*)std::realloc(buffer.Data(), buffer.Length());
-
-      /*int* test = new int(0xc);
-      buffer.AddFinalizer([](Napi::Env, buffer.Data()) {
-        cout << "finalier" << endl;
-      }, test);*/
+      json_string = asdf;
 
     } else {
-
       // there is no memory leak
-      Napi::Value json_string = first.Get("json_string");
-      json_string_string = json_string.ToString();
+      json_string = first.Get("json_string").ToString();
     }
-
-    returnValue = Napi::String::New(env, itemsjs::index("", json_string_string, faceted_fields_array, sorting_fields_array, append));
   }
 
-  return returnValue;
+  return Napi::String::New(env, itemsjs::index(json_path, json_string, faceted_fields_array, sorting_fields_array, append));
+  //return returnValue;
+}
+
+// @TODO
+// add mutex
+void IndexWrappedCb(const Napi::CallbackInfo& info) {
+
+  const std::lock_guard<std::mutex> lock(super_mutex);
+  cout << "start index wrapped cb" << endl;
+
+  Napi::Env env = info.Env();
+  Napi::HandleScope scope(env);
+
+  auto callback = std::make_shared<ThreadSafeCallback>(info[1].As<Napi::Function>());
+  bool fail = info.Length() > 2;
+
+  Napi::Object first = info[0].As<Napi::Object>();
+
+  vector<string> faceted_fields_array;
+  Napi::Value faceted_fields_value = first.Get("faceted_fields");
+
+  if (faceted_fields_value.IsArray()) {
+    Napi::Array faceted_fields = faceted_fields_value.As<Napi::Array>();
+
+    for (unsigned int i = 0 ; i < faceted_fields.Length() ; ++i) {
+
+      Napi::Value element = faceted_fields.Get(to_string(i));
+      string v = element.ToString();
+
+      faceted_fields_array.push_back(v);
+    }
+  }
+
+  vector<string> sorting_fields_array;
+  Napi::Value sorting_fields_value = first.Get("sorting_fields");
+
+  if (sorting_fields_value.IsArray()) {
+    Napi::Array sorting_fields = sorting_fields_value.As<Napi::Array>();
+
+    for (unsigned int i = 0 ; i < sorting_fields.Length() ; ++i) {
+
+      Napi::Value element = sorting_fields.Get(to_string(i));
+      string v = element.ToString();
+
+      sorting_fields_array.push_back(v);
+    }
+  }
+
+  bool append = true;
+  Napi::Value append_value = first.Get("append");
+
+  if (append_value.IsBoolean() and (bool) append_value.As<Napi::Boolean>() == false) {
+    append = false;
+  }
+
+  cout << "append " << append << endl;
+
+  string json_string;
+  string json_path;
+
+  if (first.Has("json_object")) {
+
+    Napi::Value json_object = first.Get("json_object");
+
+    Napi::Object json = env.Global().Get("JSON").As<Napi::Object>();
+    Napi::Function stringify = json.Get("stringify").As<Napi::Function>();
+    json_string = stringify.Call(json, { json_object }).As<Napi::String>();
+
+  } else if (first.Has("json_path")) {
+
+    json_path = first.Get("json_path").ToString();
+
+  } else if (first.Has("json_string")) {
+
+    if (first.Get("json_string").IsBuffer()) {
+
+      // @todo delete buffer
+      // there is a memory leak
+      Napi::Buffer<char> buffer = first.Get("json_string").As<Napi::Buffer<char>>();
+
+      string_view asdf (buffer.Data(), buffer.Length());
+      json_string = asdf;
+
+    } else {
+      // there is no memory leak
+      json_string = first.Get("json_string").ToString();
+    }
+  }
+
+  // Pass callback to other thread
+  //std::thread([callback, fail, json_path, json_string, faceted_fields_array, sorting_fields_array, append] {
+  //std::thread([callback, fail, json_path, json_string, faceted_fields_array, sorting_fields_array, append] {
+  std::thread([callback, fail, json_path, json_string, faceted_fields_array, sorting_fields_array, append] {
+  //std::thread([callback, fail, json_path, json_string, faceted_fields_array, sorting_fields_array, append] {
+  //std::thread([callback, fail, std::ref(json_path), std::ref(json_string), std::ref(faceted_fields_array), std::ref(sorting_fields_array), append] {
+    try {
+      if (fail) {
+        throw std::runtime_error("Failure during async work");
+      }
+
+      vector<string> a;
+      vector<string> b;
+
+      //string result = itemsjs::index("", "[{\"a\":5},{\"a\":6}]", a, b, false);
+      string result = itemsjs::index(json_path, json_string, faceted_fields_array, sorting_fields_array, append);
+      //string result = "";
+
+      // this is non blocking
+      //cout << "go to sleep" << endl;
+      //std::this_thread::sleep_for(3s);
+
+      //concurrency_test();
+
+      callback->call([result](Napi::Env env, std::vector<napi_value>& args) {
+
+        args = { env.Undefined(), Napi::String::New(env, result) };
+      });
+    }
+    catch (std::exception& e) {
+      callback->callError(e.what());
+    }
+  }).detach();
+}
+
+/**
+ * it's for testing async with threads purpose
+ */
+void ConcurrencyWrappedCb(const Napi::CallbackInfo& info) {
+  auto callback = std::make_shared<ThreadSafeCallback>(info[1].As<Napi::Function>());
+  std::thread([callback] {
+    try {
+
+      //cout << "slept goodslept goodslept goodslept goodslept goodslept goodslept goodslept good" << endl;
+
+      callback->call([](Napi::Env env, std::vector<napi_value>& args) {
+        //concurrency_test();
+        cout << "ccallbackcallbackcallbackcallbackcallbackcallbackcallbackallback" << endl;
+        args = { env.Undefined(), Napi::String::New(env, "result") };
+      });
+    }
+    catch (std::exception& e) {
+      callback->callError(e.what());
+    }
+  }).detach();
 }
 
 Napi::Object itemsjs::Init(Napi::Env env, Napi::Object exports) {
+
   exports.Set("hello", Napi::Function::New(env, itemsjs::HelloWrapped));
   exports.Set("delete_item", Napi::Function::New(env, itemsjs::DeleteItemWrapped));
   exports.Set("sort_index", Napi::Function::New(env, itemsjs::SortIndexWrapped));
   exports.Set("load_sort_index", Napi::Function::New(env, itemsjs::LoadSortIndexWrapped));
   exports.Set("index", Napi::Function::New(env, itemsjs::IndexWrapped));
+  exports.Set("indexCb", Napi::Function::New(env, IndexWrappedCb));
+  exports.Set("concurrencyCb", Napi::Function::New(env, ConcurrencyWrappedCb));
   exports.Set("search_facets", Napi::Function::New(env, itemsjs::SearchFacetsWrapped));
   exports.Set("json", Napi::Function::New(env, itemsjs::JsonWrapped));
   exports.Set("tokenize", Napi::Function::New(env, itemsjs::TokenizeWrapped));

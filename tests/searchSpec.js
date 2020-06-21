@@ -48,10 +48,9 @@ describe('search', function() {
     done();
   })
 
-  it('searches with two filters', function test(done) {
+  it('searches with two filters', async function test() {
 
-
-    itemsjs.index({
+    await itemsjs.index({
       json_object: items,
       append: false,
       configuration: configuration
@@ -67,13 +66,12 @@ describe('search', function() {
     assert.equal(result.data.items.length, 2);
     assert.equal(result.data.aggregations.tags.buckets[0].doc_count, 2);
 
-    done();
   })
 
-  it('searches with filter and query', function test(done) {
+  it('searches with filter and query', async function test() {
 
 
-    itemsjs.index({
+    await itemsjs.index({
       json_object: items,
       append: false,
       configuration: configuration
@@ -90,14 +88,12 @@ describe('search', function() {
     assert.equal(result.data.aggregations.tags.buckets[0].doc_count, 2);
     assert.equal(result.data.aggregations.category.buckets[0].key, 'comedy');
     assert.equal(result.data.aggregations.category.buckets[0].doc_count, 2);
-
-    done();
   })
 
 
-  it('makes search with empty filters', function test(done) {
+  it('makes search with empty filters', async function test() {
 
-    itemsjs.index({
+    await itemsjs.index({
       json_object: items,
       configuration: configuration,
       append: false
@@ -109,13 +105,11 @@ describe('search', function() {
     });
 
     assert.equal(result.data.items.length, 4);
-
-    done();
   })
 
-  it('makes search with not filters', function test(done) {
+  it('makes search with not filters', async function test() {
 
-    itemsjs.index({
+    await itemsjs.index({
       json_object: items,
       configuration: configuration,
       append: false
@@ -128,13 +122,11 @@ describe('search', function() {
     });
 
     assert.equal(result.data.items.length, 1);
-
-    done();
   })
 
-  it('makes search with many not filters', function test(done) {
+  it('makes search with many not filters', async function test() {
 
-    itemsjs.index({
+    await itemsjs.index({
       json_object: items,
       configuration: configuration,
       append: false
@@ -147,8 +139,6 @@ describe('search', function() {
     });
 
     assert.equal(result.data.items.length, 0);
-
-    done();
   })
 })
 
@@ -160,15 +150,14 @@ describe('no configuration', function() {
     }
   }
 
-  before(function(done) {
+  before(async function() {
     storage.deleteConfiguration();
     storage.dropDB();
-    itemsjs.index({
+    await itemsjs.index({
       json_object: items,
       append: false,
       configuration: configuration
     });
-    done();
   });
 
   it('searches with two filters', function test(done) {

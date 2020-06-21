@@ -31,9 +31,9 @@ describe('query parser', function() {
 
 describe('proximity search', function() {
 
-  before(function() {
+  before(async function() {
     facets = new Facets();
-    facets.index({
+    await facets.index({
       json_object: movies,
       append: false
     });
@@ -79,9 +79,9 @@ describe('proximity search', function() {
 
 describe('full text', function() {
 
-  before(function() {
+  before(async function() {
     facets = new Facets();
-    facets.index({
+    await facets.index({
       json_object: data,
       append: false
     });

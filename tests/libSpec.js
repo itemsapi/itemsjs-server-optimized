@@ -23,13 +23,12 @@ describe('search', function() {
     }
   }
 
-  before(function(done) {
+  before(async function() {
     storage.dropDB();
-    facets.index({
+    await facets.index({
       json_object: items,
       configuration: configuration
     });
-    done();
   });
 
   it('search 1', function test(done) {
@@ -131,15 +130,14 @@ describe('movies search', function() {
     }
   }
 
-  before(function(done) {
+  before(async function() {
     storage.dropDB();
-    facets.index({
+    await facets.index({
       json_path: './tests/fixtures/movies.json',
       faceted_fields: ['actors', 'genres', 'year', 'director'],
       sorting_fields: ['votes', 'year'],
       configuration: configuration
     });
-    done();
   });
 
   it('search with sorting', function test(done) {
@@ -178,13 +176,12 @@ describe('proximity search', function() {
     }
   }
 
-  before(function(done) {
+  before(async function() {
     storage.dropDB();
-    facets.index({
+    await facets.index({
       json_path: './tests/fixtures/movies.json',
       configuration: configuration
     });
-    done();
   });
 
   it('search', function test(done) {

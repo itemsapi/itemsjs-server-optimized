@@ -207,16 +207,14 @@ describe('aggregation / facet', function() {
 
 
 
-  before(function(done) {
+  before(async function() {
     storage.dropDB();
 
-    facets.index({
+    await facets.index({
       json_object: data,
       append: false,
       configuration: configuration
     });
-
-    done();
   });
 
   it('checks index after partial update', function test(done) {

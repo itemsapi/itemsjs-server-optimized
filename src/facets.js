@@ -9,7 +9,8 @@ const storage = require('./storage');
 const algo = require('./algo');
 //const fs = require('fs-extra');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
-const addon = require('bindings')('itemsjs_addon.node');
+//const addon = require('bindings')('itemsjs_addon.node');
+const addon = require('./addon');
 
 /**
  * responsible for making faceted search
@@ -73,12 +74,11 @@ Facets.prototype = {
     }
   },
 
-  index: function(data) {
-
-    //data.configuration.aggregations = data.configuration.aggregations || {};
+  index: async function(data) {
 
     var configuration = data.configuration;
 
+    //var time = new Date().getTime();
     if (configuration) {
       storage.setConfiguration(configuration);
     } else {
@@ -96,8 +96,24 @@ Facets.prototype = {
       data.sorting_fields  = configuration.sorting_fields;
     }
 
-    addon.index(data);
-    //delete data.json_string;
+    /*await mutex.acquire();
+    try {
+      addon.index(data);
+    } finally {
+      mutex.release();
+    }*/
+
+
+    if (1 || configuration.async_indexing === true) {
+      console.log(`async indexing`);
+      await addon.indexAsync(data);
+    } else {
+      addon.index(data);
+    }
+
+    //var time = new Date().getTime();
+    //addon.index(data);
+    //console.log(`index data time: ${new Date().getTime() - time}`);
   },
 
   get_index: function() {

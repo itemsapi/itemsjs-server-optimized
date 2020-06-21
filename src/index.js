@@ -18,8 +18,8 @@ module.exports = function itemsjs() {
 
     /**
      */
-    index: function(data) {
-      facets.index(data);
+    index: async function(data) {
+      await facets.index(data);
     },
 
     load_sort_index: function() {
