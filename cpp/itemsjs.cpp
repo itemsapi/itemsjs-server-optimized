@@ -30,7 +30,7 @@ unsigned int WRITER_FLAGS = MDB_NOSYNC | MDB_WRITEMAP | MDB_MAPASYNC | MDB_NOMET
 //unsigned int WRITER_FLAGS = 0;
 
 // mutex is used so MDB_NOTLS not needed
-unsigned int READER_FLAGS = MDB_NOTLS;
+unsigned int READER_FLAGS = MDB_NOLOCK | MDB_NOTLS;
 //unsigned int READER_FLAGS = 0;
 
 
@@ -851,12 +851,17 @@ std::string itemsjs::index(const string& json_path, const string& json_string, c
   wtxn = lmdb::txn::begin(env);
   auto dbi_terms = lmdb::dbi::open(wtxn, "terms", MDB_CREATE);
 
+  cout << "start updating " << search_roar.size() << " terms elements" << endl;
+
   start = std::chrono::high_resolution_clock::now();
   //i = 1;
   for (auto&& [key, roar_object] : search_roar) {
 
     std::string name(key);
 
+    // ignore long key like
+    //✯✯✯✯✯reviews
+    //term|||✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱ᴇᴇᴇᴇᴇᴇ......
     if (name.length() > 100) {
       continue;
     }
@@ -864,15 +869,16 @@ std::string itemsjs::index(const string& json_path, const string& json_string, c
     if (append) {
 
       std::string_view filter_indexes;
+      // @TODO
+      // we can make temporary map for Roaring indexes. we save time for reading  ?!
+      // reading is incredibly fast. write is a bottleneck
       if (dbi_terms.get(wtxn, name, filter_indexes)) {
         roar_object |= Roaring::read(filter_indexes.data());
-        roar_object.runOptimize();
+        // it may slow down?
+        // roar_object.runOptimize();
       }
     }
 
-    // ignore long key like
-    //✯✯✯✯✯reviews
-    //term|||✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱ᴇᴇᴇᴇᴇᴇ......
     db_put_roaring(dbi_terms, wtxn, name, roar_object);
   }
 
