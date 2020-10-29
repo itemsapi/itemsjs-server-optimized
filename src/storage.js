@@ -18,7 +18,8 @@ env.open({
   path: './db.mdb',
   mapSize: 100 * 1024 * 1024 * 1024,
   maxReaders: 10,
-  //noTls: true,
+  noTls: true,
+  unsafeNoLock: true,
   maxDbs: 30
 });
 

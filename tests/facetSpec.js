@@ -27,16 +27,14 @@ var configuration = {
 
 describe('aggregation / facet', function() {
 
-  before(function(done) {
+  before(async function() {
     storage.dropDB();
 
-    facets.index({
+    await facets.index({
       json_object: items,
       append: false,
       configuration: configuration
     });
-
-    done();
   });
 
   it('makes error if name does not exist', function test(done) {

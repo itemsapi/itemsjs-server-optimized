@@ -31,10 +31,10 @@ describe('conjunctive search', function() {
     }
   }
 
-  before(function() {
+  before(async function() {
     storage.dropDB();
     facets = new Facets();
-    facets.index({
+    await facets.index({
       json_object: items,
       append: false,
       configuration: configuration
@@ -191,10 +191,10 @@ describe('disjunctive search', function() {
   }
 
 
-  before(function() {
+  before(async function() {
     storage.dropDB();
     facets = new Facets();
-    facets.index({
+    await facets.index({
       json_object: items,
       append: false,
       configuration: configuration
@@ -342,10 +342,10 @@ describe('disjunctive and conjunctive search', function() {
     }
   }
 
-  before(function() {
+  before(async function() {
     storage.dropDB();
     facets = new Facets();
-    facets.index({
+    await facets.index({
       json_object: items,
       append: false,
       configuration: configuration
@@ -542,10 +542,10 @@ describe('generates facets crossed with query', function() {
   }
 
 
-  before(function() {
+  before(async function() {
     storage.dropDB();
     facets = new Facets();
-    facets.index({
+    await facets.index({
       json_object: items,
       append: false,
       configuration: configuration
@@ -627,10 +627,10 @@ describe('negative filters', function() {
     }
   }
 
-  before(function() {
+  before(async function() {
     storage.dropDB();
     facets = new Facets();
-    facets.index({
+    await facets.index({
       json_object: items,
       append: false,
       configuration: configuration
@@ -672,10 +672,10 @@ describe('small configuration', function() {
     }
   }
 
-  before(function() {
+  before(async function() {
     storage.dropDB();
     facets = new Facets();
-    facets.index({
+    await facets.index({
       json_object: items,
       append: false,
       configuration: configuration
@@ -707,10 +707,10 @@ describe('no configuration', function() {
     }
   }
 
-  before(function() {
+  before(async function() {
     storage.dropDB();
     facets = new Facets();
-    facets.index({
+    await facets.index({
       json_object: items,
       append: false,
       configuration: configuration

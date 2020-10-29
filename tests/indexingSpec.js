@@ -3,12 +3,11 @@
 const assert = require('assert');
 const storage = require('./../src/storage');
 const helpers2 = require('./../src/helpers2');
-const addon = require('bindings')('itemsjs_addon.node');
+//const addon = require('bindings')('itemsjs_addon.node');
+const addon = require('./../src/addon');
 const Facets = require('./../src/facets');
 const data = require('./fixtures/items.json');
-
-//const SegfaultHandler = require('segfault-handler');
-//SegfaultHandler.registerHandler('crash.log');
+const _ = require('lodash');
 
 var facets = new Facets();
 
@@ -224,4 +223,3 @@ describe('indexing', function() {
     done();
   })
 })
-
