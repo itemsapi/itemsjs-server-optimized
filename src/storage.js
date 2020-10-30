@@ -73,7 +73,7 @@ module.exports.deleteItem = function(index_path, id) {
   var internal_id = module.exports.getInternalId(index_path, id);
 
   if (internal_id) {
-    addon.delete_item(internal_id);
+    addon.delete_item(index_path, internal_id);
   }
 }
 
@@ -95,8 +95,7 @@ module.exports.updateItem = function(index_path, item, options) {
     throw new Error(`Not found item by primary key "${id}"`);
   }
 
-  addon.delete_item(internal_id);
-  //addon.delete_item(index_path, internal_id);
+  addon.delete_item(index_path, internal_id);
   addon.index({
     json_object: [item],
     index_path: index_path,
@@ -118,7 +117,7 @@ module.exports.partialUpdateItem = function(index_path, id, item, options) {
     throw new Error(`Not found item by primary key "${id}"`);
   }
 
-  addon.delete_item(internal_id);
+  addon.delete_item(index_path, internal_id);
   addon.index({
     json_object: [_.assign(old_item, item)],
     index_path: index_path,

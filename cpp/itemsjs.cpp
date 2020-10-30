@@ -369,15 +369,15 @@ std::tuple<std::set<string>, std::set<string>> tokenize_item(simdjson::dom::obje
   return {filters, terms};
 }
 
-void itemsjs::delete_item(int id) {
+void itemsjs::delete_item(const char *&index_path, int id) {
 
   const std::lock_guard<std::mutex> lock(super_mutex);
 
   auto env = lmdb::env::create();
-  env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
-  env.set_max_dbs(20);
 
-  env.open("./db.mdb", WRITER_FLAGS, 0664);
+  env.set_mapsize(DB_SIZE);
+  env.set_max_dbs(20);
+  env.open(index_path, 0, 0664);
   //env.set_flags();
 
   auto wtxn = lmdb::txn::begin(env);
@@ -472,14 +472,14 @@ typedef results_bimap::value_type position;
 
 map<string, results_bimap> sorting2;
 
-void itemsjs::load_sort_index(std::vector<std::string> &sorting_fields) {
+void itemsjs::load_sort_index(const char *&index_path, std::vector<std::string> &sorting_fields) {
 
   sorting2.clear();
 
   auto env = lmdb::env::create();
-  env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL);
+  env.set_mapsize(DB_SIZE);
   env.set_max_dbs(20);
-  env.open("./db.mdb", 0, 0664);
+  env.open(index_path, 0, 0664);
 
   auto rtxn = lmdb::txn::begin(env, nullptr, MDB_RDONLY);
 
@@ -927,13 +927,23 @@ Napi::Array itemsjs::TokenizeWrapped(const Napi::CallbackInfo& info) {
 
 void itemsjs::DeleteItemWrapped(const Napi::CallbackInfo& info) {
 
-  auto id = info[0].As<Napi::Number>().Uint32Value();
-  itemsjs::delete_item(id);
+  //Napi::Value index_name = info[0].As<Napi::Number>().Uint32Value();
+
+  Napi::String index_name = info[0].As<Napi::String>();
+  string name_a(index_name.ToString());
+  const char *index_path = name_a.c_str();
+
+  auto id = info[1].As<Napi::Number>().Uint32Value();
+  itemsjs::delete_item(index_path, id);
 }
 
 void itemsjs::LoadSortIndexWrapped(const Napi::CallbackInfo& info) {
 
-  Napi::Array first = info[0].As<Napi::Array>();
+  Napi::String index_name = info[0].As<Napi::String>();
+  string name_a(index_name.ToString());
+  const char *index_path = name_a.c_str();
+
+  Napi::Array first = info[1].As<Napi::Array>();
 
   vector<string> sorting_fields_array;
 
@@ -948,7 +958,7 @@ void itemsjs::LoadSortIndexWrapped(const Napi::CallbackInfo& info) {
     }
   }
 
-  itemsjs::load_sort_index(sorting_fields_array);
+  itemsjs::load_sort_index(index_path, sorting_fields_array);
 }
 
 Napi::Object itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {

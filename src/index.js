@@ -20,8 +20,13 @@ module.exports = function itemsjs() {
      */
     index: async function(index_name, data) {
 
-      var index_path = `./${index_name}.mdb`
+      var index_path = `./data/${index_name}.mdb`
       await facets.index(index_path, data);
+    },
+
+    /**
+     */
+    indexes_list: async function(index_name, data) {
     },
 
     load_sort_index: function() {
@@ -81,7 +86,7 @@ module.exports = function itemsjs() {
       //const index_regex = /[A-Z0-9_]/g;
       //const found = index_path.match(regex);
 
-      var index_path = `./${index_name}.mdb`
+      var index_path = `./data/${index_name}.mdb`
 
       configuration = storage.getConfiguration(index_path);
 

@@ -8,7 +8,7 @@ const addon = require('./../src/addon');
 const Facets = require('./../src/facets');
 const data = require('./fixtures/items.json');
 const _ = require('lodash');
-const INDEX_PATH = './db.mdb';
+const INDEX_PATH = './data/db.mdb';
 
 var facets = new Facets();
 

@@ -7,7 +7,7 @@ const data = require('./fixtures/items.json');
 const movies = require('./fixtures/movies.json');
 const addon = require('bindings')('itemsjs_addon.node');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
-const INDEX_PATH = './db.mdb';
+const INDEX_PATH = './data/db.mdb';
 
 var facets;
 

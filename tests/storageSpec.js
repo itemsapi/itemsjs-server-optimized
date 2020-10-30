@@ -2,7 +2,7 @@
 
 const assert = require('assert');
 const storage = require('./../src/storage');
-const INDEX_PATH = './db.mdb';
+const INDEX_PATH = './data/db.mdb';
 
 describe('storage', function() {
 

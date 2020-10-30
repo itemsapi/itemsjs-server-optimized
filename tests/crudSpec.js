@@ -6,7 +6,7 @@ const helpers2 = require('./../src/helpers2');
 const addon = require('bindings')('itemsjs_addon.node');
 const Facets = require('./../src/facets');
 let data = require('./fixtures/movies.json');
-const INDEX_PATH = './db.mdb';
+const INDEX_PATH = './data/db.mdb';
 
 var i = 1;
 data = data.map(v => {

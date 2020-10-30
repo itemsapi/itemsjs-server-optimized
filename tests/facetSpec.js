@@ -5,7 +5,7 @@ const Facets = require('./../src/facets');
 const storage = require('./../src/storage');
 const lib = require('./../src/lib');
 const items = require('./fixtures/movies.json');
-const INDEX_PATH = './db.mdb';
+const INDEX_PATH = './data/db.mdb';
 var facets = new Facets();
 
 var configuration = {

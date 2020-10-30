@@ -7,9 +7,9 @@ const helpers2 = require('./../src/helpers2');
 const storage = require('./../src/storage');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 const items = require('./fixtures/items.json');
-const INDEX_PATH = './db.mdb';
 const addon = require('./../src/addon');
 const _ = require('lodash');
+const INDEX_PATH = './data/db.mdb';
 
 var facets;
 

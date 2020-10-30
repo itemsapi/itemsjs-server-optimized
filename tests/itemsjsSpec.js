@@ -6,7 +6,7 @@ const storage = require('./../src/storage');
 const lib = require('./../src/lib');
 const items = require('./fixtures/items.json');
 var itemsjs = require('./../src/index')();
-const INDEX_PATH = './db.mdb';
+const INDEX_PATH = './data/db.mdb';
 const INDEX_NAME = 'db';
 
 describe('search', function() {

@@ -8,7 +8,7 @@ const addon = require('bindings')('itemsjs_addon.node');
 const Facets = require('./../src/facets');
 const data = require('./fixtures/items.json');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
-const INDEX_PATH = './db.mdb';
+const INDEX_PATH = './data/db.mdb';
 
 var facets = new Facets();
 
@@ -107,7 +107,7 @@ describe('indexing', function() {
 
   it('load sort index', function test(done) {
 
-    addon.load_sort_index(['year', 'votes', 'nonono']);
+    addon.load_sort_index(INDEX_PATH, ['year', 'votes', 'nonono']);
 
     var ids = new RoaringBitmap32([1, 2, 3, 4]).serialize(true);
     var sorted_index = Array.from(addon.sort_index(ids, 'year', 'asc', 0, 4));
@@ -119,7 +119,7 @@ describe('indexing', function() {
 
   it('load sort index with not existing field', function test(done) {
 
-    addon.load_sort_index(['year', 'votes', 'nonono']);
+    addon.load_sort_index(INDEX_PATH, ['year', 'votes', 'nonono']);
 
     var ids = new RoaringBitmap32([1, 2, 3, 4]).serialize(true);
     var sorted_index = Array.from(addon.sort_index(ids, 'year', 'asc', 0, 4));
@@ -148,7 +148,7 @@ describe('indexing', function() {
       append: true
     });
 
-    addon.load_sort_index(['year', 'votes']);
+    addon.load_sort_index(INDEX_PATH, ['year', 'votes']);
 
     var ids = new RoaringBitmap32([30, 31]).serialize(true);
     var sorted_index = Array.from(addon.sort_index(ids, 'year', 'asc', 0, 2));
@@ -160,6 +160,4 @@ describe('indexing', function() {
 
     done();
   })
-
 })
-
