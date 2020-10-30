@@ -68,6 +68,7 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
   std::map<string, Roaring> combination;
   std::set<string> filters_fields_set = facets_fields;
   nlohmann::json output;
+  output = nlohmann::json::object();
 
   auto env = lmdb::env::create();
   env.set_mapsize(DB_SIZE);
@@ -237,7 +238,20 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
     }
 
 
-    output[sv][sv2] = ids.cardinality();
+    output["counters"][sv][sv2] = ids.cardinality();
+
+    //nlohmann::json lista;
+    //auto ans = new uint32_t[ids.cardinality()];
+    //ids.toUint32Array(ans);
+
+    output["data"][sv][sv2] = nlohmann::json::array();;
+    for (auto bit_id: ids) {
+
+      output["data"][sv][sv2].push_back(bit_id);
+    }
+
+    //cout << lista << endl;
+
     ++i;
   }
 
@@ -974,7 +988,7 @@ Napi::Object itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {
 
   Napi::Object obj = Napi::Object::New(env);
   auto [result, ids, not_ids] = itemsjs::search_facets(index_path, input, filters_array, conf, facets_fields, query_ids);
-  obj.Set("facets", result);
+  obj.Set("raw", result);
 
   if (ids) {
 
@@ -1064,7 +1078,7 @@ void itemsjs::SearchFacetsWrappedCb(const Napi::CallbackInfo& info) {
 
         Napi::Object obj = Napi::Object::New(env);
 
-        obj.Set("facets", result2);
+        obj.Set("raw", result2);
 
         if (ids) {
 

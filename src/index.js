@@ -18,8 +18,10 @@ module.exports = function itemsjs() {
 
     /**
      */
-    index: async function(data) {
-      await facets.index(data);
+    index: async function(index_name, data) {
+
+      var index_path = `./${index_name}.mdb`
+      await facets.index(index_path, data);
     },
 
     load_sort_index: function() {
@@ -68,10 +70,20 @@ module.exports = function itemsjs() {
      * sort
      * filters
      */
-    search: function(input) {
+    search: function(index_name, input) {
       input = input || {};
 
-      configuration = storage.getConfiguration();
+      // @TODO
+      if (0) {
+        throw new Error('invalid index name');
+      }
+
+      //const index_regex = /[A-Z0-9_]/g;
+      //const found = index_path.match(regex);
+
+      var index_path = `./${index_name}.mdb`
+
+      configuration = storage.getConfiguration(index_path);
 
       if (!configuration) {
         throw new Error('index first then search');
@@ -82,7 +94,7 @@ module.exports = function itemsjs() {
        */
       input.aggregations = helpers.mergeAggregations(configuration.aggregations, input);
 
-      return lib.search(input, configuration, facets);
+      return lib.search(index_path, input, configuration, facets);
     },
 
     aggregation: function aggregation(input) {

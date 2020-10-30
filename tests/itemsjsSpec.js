@@ -6,6 +6,8 @@ const storage = require('./../src/storage');
 const lib = require('./../src/lib');
 const items = require('./fixtures/items.json');
 var itemsjs = require('./../src/index')();
+const INDEX_PATH = './db.mdb';
+const INDEX_NAME = 'db';
 
 describe('search', function() {
 
@@ -27,12 +29,12 @@ describe('search', function() {
   }
 
   before(function(done) {
-    storage.deleteConfiguration();
+    storage.deleteConfiguration(INDEX_PATH);
     done();
   });
 
   beforeEach(function(done) {
-    storage.dropDB();
+    storage.dropDB(INDEX_PATH);
     done();
   });
 
@@ -40,7 +42,7 @@ describe('search', function() {
 
     try {
 
-      var result = itemsjs.search();
+      var result = itemsjs.search(INDEX_NAME);
     } catch (err) {
       assert.equal(err.message, 'index first then search');
     }
@@ -48,15 +50,27 @@ describe('search', function() {
     done();
   })
 
+  /*it('cannot search with invalid index name', function test(done) {
+
+    try {
+
+      var result = itemsjs.search('A A A');
+    } catch (err) {
+      assert.equal(err.message, 'invalid index name');
+    }
+
+    done();
+  })*/
+
   it('searches with two filters', async function test() {
 
-    await itemsjs.index({
+    await itemsjs.index(INDEX_NAME, {
       json_object: items,
       append: false,
       configuration: configuration
     });
 
-    var result = itemsjs.search({
+    var result = itemsjs.search(INDEX_NAME, {
       filters: {
         tags: ['a'],
         category: ['drama']
@@ -71,13 +85,13 @@ describe('search', function() {
   it('searches with filter and query', async function test() {
 
 
-    await itemsjs.index({
+    await itemsjs.index(INDEX_NAME, {
       json_object: items,
       append: false,
       configuration: configuration
     });
 
-    var result = itemsjs.search({
+    var result = itemsjs.search(INDEX_NAME, {
       filters: {
         tags: ['a'],
       },
@@ -93,13 +107,13 @@ describe('search', function() {
 
   it('makes search with empty filters', async function test() {
 
-    await itemsjs.index({
+    await itemsjs.index(INDEX_NAME, {
       json_object: items,
       configuration: configuration,
       append: false
     });
 
-    var result = itemsjs.search({
+    var result = itemsjs.search(INDEX_NAME, {
       filters: {
       }
     });
@@ -109,13 +123,13 @@ describe('search', function() {
 
   it('makes search with not filters', async function test() {
 
-    await itemsjs.index({
+    await itemsjs.index(INDEX_NAME, {
       json_object: items,
       configuration: configuration,
       append: false
     });
 
-    var result = itemsjs.search({
+    var result = itemsjs.search(INDEX_NAME, {
       not_filters: {
         tags: ['c']
       }
@@ -126,13 +140,13 @@ describe('search', function() {
 
   it('makes search with many not filters', async function test() {
 
-    await itemsjs.index({
+    await itemsjs.index(INDEX_NAME, {
       json_object: items,
       configuration: configuration,
       append: false
     });
 
-    var result = itemsjs.search({
+    var result = itemsjs.search(INDEX_NAME, {
       not_filters: {
         tags: ['c', 'e']
       }
@@ -151,9 +165,9 @@ describe('no configuration', function() {
   }
 
   before(async function() {
-    storage.deleteConfiguration();
-    storage.dropDB();
-    await itemsjs.index({
+    storage.deleteConfiguration(INDEX_PATH);
+    storage.dropDB(INDEX_PATH);
+    await itemsjs.index(INDEX_NAME, {
       json_object: items,
       append: false,
       configuration: configuration
@@ -162,7 +176,7 @@ describe('no configuration', function() {
 
   it('searches with two filters', function test(done) {
 
-    var result = itemsjs.search({
+    var result = itemsjs.search(INDEX_NAME, {
     });
 
     assert.equal(result.data.items.length, 4);

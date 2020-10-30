@@ -8,18 +8,19 @@ const addon = require('bindings')('itemsjs_addon.node');
 const Facets = require('./../src/facets');
 const data = require('./fixtures/items.json');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
+const INDEX_PATH = './db.mdb';
 
 var facets = new Facets();
 
 describe('indexing', function() {
 
   before(function(done) {
-    storage.dropDB();
+    storage.dropDB(INDEX_PATH);
 
     addon.index({
       json_path: './tests/fixtures/movies.json',
       faceted_fields: ['actors', 'genres', 'year', 'director'],
-      //sorting_fields: ['votes'],
+      index_path: INDEX_PATH,
       sorting_fields: ['votes', 'year', 'rating', 'position'],
       append: false
     });
@@ -29,14 +30,14 @@ describe('indexing', function() {
 
   it('checks sorting', function test(done) {
 
-    assert.deepEqual(1790841, storage.getSortingValue('votes', 1));
-    assert.deepEqual(1222640, storage.getSortingValue('votes', 2));
+    assert.deepEqual(1790841, storage.getSortingValue(INDEX_PATH, 'votes', 1));
+    assert.deepEqual(1222640, storage.getSortingValue(INDEX_PATH, 'votes', 2));
 
-    assert.deepEqual(1972, storage.getSortingValue('year', 2));
-    assert.deepEqual(1994, storage.getSortingValue('year', 1));
-    assert.deepEqual(1994, storage.getSortingValue('year', 5));
+    assert.deepEqual(1972, storage.getSortingValue(INDEX_PATH, 'year', 2));
+    assert.deepEqual(1994, storage.getSortingValue(INDEX_PATH, 'year', 1));
+    assert.deepEqual(1994, storage.getSortingValue(INDEX_PATH, 'year', 5));
 
-    assert.deepEqual(1, storage.getSortingValue('position', 20));
+    assert.deepEqual(1, storage.getSortingValue(INDEX_PATH, 'position', 20));
 
     var ids = new RoaringBitmap32([1, 2, 3, 4]).serialize(true);
     var sorted_index = Array.from(addon.sort_index(ids, 'votes', 'asc', 0, 4));
@@ -71,7 +72,7 @@ describe('indexing', function() {
 
   it('checks sorting by double / float', function test(done) {
 
-    assert.deepEqual(9.3, storage.getSortingValue('rating', 1));
+    assert.deepEqual(9.3, storage.getSortingValue(INDEX_PATH, 'rating', 1));
 
     var ids = new RoaringBitmap32([1, 2, 3, 4]).serialize(true);
     var sorted_index = Array.from(addon.sort_index(ids, 'rating', 'asc', 0, 4));
@@ -142,6 +143,7 @@ describe('indexing', function() {
     addon.index({
       json_path: './tests/fixtures/movies.json',
       faceted_fields: ['actors', 'genres', 'year', 'director'],
+      index_path: INDEX_PATH,
       sorting_fields: ['votes', 'year', 'rating'],
       append: true
     });

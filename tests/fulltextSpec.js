@@ -7,6 +7,7 @@ const data = require('./fixtures/items.json');
 const movies = require('./fixtures/movies.json');
 const addon = require('bindings')('itemsjs_addon.node');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
+const INDEX_PATH = './db.mdb';
 
 var facets;
 
@@ -33,9 +34,9 @@ describe('proximity search', function() {
 
   before(async function() {
     facets = new Facets();
-    await facets.index({
+    await facets.index(INDEX_PATH, {
       json_object: movies,
-      index_path: INDEX_PATH,
+      configuration: {},
       append: false
     });
   });
@@ -82,9 +83,9 @@ describe('full text', function() {
 
   before(async function() {
     facets = new Facets();
-    await facets.index({
+    await facets.index(INDEX_PATH, {
       json_object: data,
-      index_path: INDEX_PATH,
+      configuration: {},
       append: false
     });
   });
@@ -96,6 +97,8 @@ describe('full text', function() {
     }
 
     var result = facets.fulltext(INDEX_PATH, input);
+
+    console.log(result);
 
     assert.deepEqual(result.toArray(), [1, 4]);
 

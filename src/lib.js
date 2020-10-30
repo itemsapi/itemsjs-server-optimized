@@ -11,8 +11,7 @@ const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 /**
  * search by filters
  */
-//module.exports.search = function(items, input, configuration, fulltext, facets) {
-module.exports.search = function(input, configuration, facets) {
+module.exports.search = function(index_path, input, configuration, facets) {
 
   input = input || {};
 
@@ -27,7 +26,7 @@ module.exports.search = function(input, configuration, facets) {
   var total_time = new Date().getTime();
 
   if (input.query) {
-    query_ids = facets.fulltext(input);
+    query_ids = facets.fulltext(index_path, input);
     //query_ids = facets.proximity_search(input);
     //console.log(query_ids);
   }
@@ -48,22 +47,17 @@ module.exports.search = function(input, configuration, facets) {
   var new_facet_time = new Date().getTime();
 
   var facet_result;
-  if (1 || input.search_native) {
-    facet_result = facets.search_native(input, {
-      query_ids: query_ids
-    });
-  } else {
-    facet_result = facets.search(input, {
-      query_ids: query_ids
-    });
-  }
+
+  facet_result = facets.search_native(index_path, input, {
+    query_ids: query_ids
+  });
 
   new_facet_time = new Date().getTime() - new_facet_time;
   // ------------------------------------------
 
   var facets_ids_time = new Date().getTime();
 
-  var _ids_bitmap = storage.getIdsBitmap();
+  var _ids_bitmap = storage.getIdsBitmap(index_path);
 
   if (input.query) {
     _ids_bitmap = query_ids;
@@ -81,7 +75,7 @@ module.exports.search = function(input, configuration, facets) {
 
   var new_items_indexes;
 
-  var proximity_ids_bitmap = facets.proximity_search(input, filtered_indexes_bitmap);
+  var proximity_ids_bitmap = facets.proximity_search(index_path, input, filtered_indexes_bitmap);
   var total = filtered_indexes_bitmap.size;
 
   if (proximity_ids_bitmap.size) {
@@ -112,7 +106,7 @@ module.exports.search = function(input, configuration, facets) {
   }
 
   sorting_time = new Date().getTime() - sorting_start_time;
-  var new_items = storage.getItems(new_items_indexes);
+  var new_items = storage.getItems(index_path, new_items_indexes);
   facets_ids_time = new Date().getTime() - facets_ids_time;
   // -------------------------------------
 
@@ -150,7 +144,7 @@ module.exports.search = function(input, configuration, facets) {
  * returns list of elements in specific facet
  * useful for autocomplete or list all aggregation options
  */
-module.exports.aggregation = function (input, configuration, facets) {
+module.exports.aggregation = function (index_path, input, configuration, facets) {
   var per_page = input.per_page || 10;
   var page = input.page || 1;
   var query = input.query;
@@ -172,7 +166,7 @@ module.exports.aggregation = function (input, configuration, facets) {
 
   configuration.aggregations[input.name].size = 10000;
 
-  var result = module.exports.search(search_input, configuration, facets);
+  var result = module.exports.search(index_path, search_input, configuration, facets);
   var buckets = result.data.aggregations[input.name].buckets;
 
   if (query) {

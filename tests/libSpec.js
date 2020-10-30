@@ -6,6 +6,7 @@ const storage = require('./../src/storage');
 const lib = require('./../src/lib');
 const items = require('./fixtures/items.json');
 var facets = new Facets();
+const INDEX_PATH = './db.mdb';
 
 describe('search', function() {
 
@@ -24,8 +25,8 @@ describe('search', function() {
   }
 
   before(async function() {
-    storage.dropDB();
-    await facets.index({
+    storage.dropDB(INDEX_PATH);
+    await facets.index(INDEX_PATH, {
       json_object: items,
       configuration: configuration
     });
@@ -44,7 +45,7 @@ describe('search', function() {
     }
 
     for (var i = 0 ; i < 20 ; ++i) {
-      var result = lib.search(input, configuration, facets);
+      var result = lib.search(INDEX_PATH, input, configuration, facets);
       //console.log(result);
       assert.deepEqual(result.pagination.total, 2);
     }
@@ -58,7 +59,7 @@ describe('search', function() {
       per_page: 100,
     }
 
-    var result = lib.search(input, configuration, facets);
+    var result = lib.search(INDEX_PATH, input, configuration, facets);
     assert.deepEqual(result.pagination.total, 4);
     assert.deepEqual(result.data.items[0].id, 1);
 
@@ -67,7 +68,7 @@ describe('search', function() {
       order: 'desc'
     }
 
-    var result = lib.search(input, configuration, facets);
+    var result = lib.search(INDEX_PATH, input, configuration, facets);
     assert.deepEqual(result.pagination.total, 4);
     assert.deepEqual(result.data.items[0].id, 4);
 
@@ -83,7 +84,7 @@ describe('search', function() {
       }
     }
 
-    var result = lib.search(input, configuration, facets);
+    var result = lib.search(INDEX_PATH, input, configuration, facets);
     assert.equal(result.data.items.length, 2);
 
     done();
@@ -99,7 +100,7 @@ describe('search', function() {
       query: 'movie4'
     }
 
-    var result = lib.search(input, configuration, facets);
+    var result = lib.search(INDEX_PATH, input, configuration, facets);
 
     assert.equal(result.data.items.length, 1);
 
@@ -131,8 +132,8 @@ describe('movies search', function() {
   }
 
   before(async function() {
-    storage.dropDB();
-    await facets.index({
+    storage.dropDB(INDEX_PATH);
+    await facets.index(INDEX_PATH, {
       json_path: './tests/fixtures/movies.json',
       faceted_fields: ['actors', 'genres', 'year', 'director'],
       sorting_fields: ['votes', 'year'],
@@ -148,7 +149,7 @@ describe('movies search', function() {
       order: 'asc'
     }
 
-    var result = lib.search(input, configuration, facets);
+    var result = lib.search(INDEX_PATH, input, configuration, facets);
     console.log(result.data.items.map(v => {
       return {
         name: v.name, year: v.year
@@ -162,7 +163,7 @@ describe('movies search', function() {
       order: 'desc'
     }
 
-    var result = lib.search(input, configuration, facets);
+    var result = lib.search(INDEX_PATH, input, configuration, facets);
     assert.deepEqual(2016, result.data.items[0].year);
 
     done();
@@ -177,8 +178,8 @@ describe('proximity search', function() {
   }
 
   before(async function() {
-    storage.dropDB();
-    await facets.index({
+    storage.dropDB(INDEX_PATH);
+    await facets.index(INDEX_PATH, {
       json_path: './tests/fixtures/movies.json',
       configuration: configuration
     });
@@ -191,7 +192,7 @@ describe('proximity search', function() {
       query: 'shawshank redemption'
     }
 
-    var result = lib.search(input, configuration, facets);
+    var result = lib.search(INDEX_PATH, input, configuration, facets);
     assert.deepEqual(result.data.items[0].name, 'The Shawshank Redemption');
 
     done();
@@ -204,8 +205,7 @@ describe('proximity search', function() {
       query: 'in the'
     }
 
-    var result = lib.search(input, configuration, facets);
-    //assert.deepEqual(result.pagination.total, 12);
+    var result = lib.search(INDEX_PATH, input, configuration, facets);
     assert.deepEqual(result.pagination.total, 18);
 
     done();
