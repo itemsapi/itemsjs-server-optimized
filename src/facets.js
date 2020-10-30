@@ -33,9 +33,9 @@ Facets.prototype = {
     //return fs.emptyDirSync('./example.mdb');
   },
 
-  partial_update_item: function(id, item) {
+  partial_update_item: function(index_path, id, item) {
 
-    var configuration = this.configuration();
+    var configuration = this.configuration(index_path);
     var data = {
       faceted_fields: []
     };
@@ -46,13 +46,13 @@ Facets.prototype = {
 
     data.sorting_fields = configuration.sorting_fields ? configuration.sorting_fields : [];
 
-    storage.partialUpdateItem(id, item, data);
+    storage.partialUpdateItem(index_path, id, item, data);
   },
 
 
-  update_item: function(item) {
+  update_item: function(index_path, item) {
 
-    var configuration = this.configuration();
+    var configuration = this.configuration(index_path);
     var data = {
       faceted_fields: []
     };
@@ -63,26 +63,30 @@ Facets.prototype = {
 
     data.sorting_fields = configuration.sorting_fields ? configuration.sorting_fields : [];
 
-    storage.updateItem(item, data);
+    storage.updateItem(index_path, item, data);
   },
 
-  load_sort_index: function() {
+  load_sort_index: function(index_path) {
 
-    var configuration = this.configuration();
+    var configuration = this.configuration(index_path);
     if (configuration.sorting_fields && Array.isArray(configuration.sorting_fields)) {
       addon.load_sort_index(configuration.sorting_fields);
     }
   },
 
-  index: async function(data) {
+  index: async function(index_path, data) {
+
+    /*if (!data.index_path) {
+      throw new Error('Index Path needed');
+    }*/
 
     var configuration = data.configuration;
 
     //var time = new Date().getTime();
     if (configuration) {
-      storage.setConfiguration(configuration);
+      storage.setConfiguration(index_path, configuration);
     } else {
-      configuration = this.configuration();
+      configuration = this.configuration(index_path);
       if (!configuration) {
         throw new Error('Configuration needed first for indexing');
       }
@@ -96,13 +100,7 @@ Facets.prototype = {
       data.sorting_fields  = configuration.sorting_fields;
     }
 
-    /*await mutex.acquire();
-    try {
-      addon.index(data);
-    } finally {
-      mutex.release();
-    }*/
-
+    data.index_path = index_path;
 
     if (configuration.async_indexing === true) {
       console.log(`async indexing`);
@@ -120,12 +118,13 @@ Facets.prototype = {
     return this.facets;
   },
 
-  set_configuration: function(configuration) {
-    storage.setConfiguration(configuration);
+  set_configuration: function(index_path, configuration) {
+
+    storage.setConfiguration(index_path, configuration);
   },
 
-  configuration: function() {
-    return storage.getConfiguration();
+  configuration: function(index_path) {
+    return storage.getConfiguration(index_path);
   },
 
 
@@ -168,7 +167,7 @@ Facets.prototype = {
   /*
    * makes proximity search using input bigrams
    */
-  proximity_search: function(input, query_ids) {
+  proximity_search: function(index_path, input, query_ids) {
     var query = input.query || '';
 
     var tokens = this.query_parser2(query);
@@ -178,7 +177,7 @@ Facets.prototype = {
     var bitmap = null;
 
     bigrams.forEach(tokens => {
-      var index = storage.getSearchTermIndex(tokens[0] + '_' + tokens[1]);
+      var index = storage.getSearchTermIndex(index_path, tokens[0] + '_' + tokens[1]);
       if (index) {
         if (!bitmap) {
           bitmap = index;
@@ -269,13 +268,13 @@ Facets.prototype = {
     return temp_facet;
   },
 
-  search_native: function(input, data) {
+  search_native: function(index_path, input, data) {
 
     data = data || {};
-    var configuration = this.configuration();
-    var config = configuration.aggregations;
+    var configuration = this.configuration(index_path);
+    var aggregations = configuration.aggregations;
 
-    if (!config) {
+    if (!aggregations) {
       throw new Error('Not found configuration for faceted search');
     }
 
@@ -283,7 +282,7 @@ Facets.prototype = {
       return {
         key: key,
         values: filter,
-        conjunction: config[key].conjunction !== false,
+        conjunction: aggregations[key].conjunction !== false,
       }
     })
 
@@ -293,21 +292,34 @@ Facets.prototype = {
 
     var query_ids = data.query_ids ? data.query_ids.serialize(true) : null;
 
-    var facets_fields = _.keys(config);
+    var facets_fields = _.keys(aggregations);
 
     if (input.facets_fields) {
       facets_fields = _.intersection(facets_fields, input.facets_fields);
     }
 
     var time = new Date().getTime();
-    var result = addon.search_facets(input, filters_array, config, facets_fields, query_ids);
+    var result = addon.search_facets({
+      input: input,
+      filters_array: filters_array,
+      aggregations: aggregations,
+      facets_fields, facets_fields,
+      query_ids: query_ids,
+      index_path: index_path
+    })
     console.log(`native search time: ${new Date().getTime() - time}`);
 
     var ids = result.ids ? RoaringBitmap32.deserialize(result.ids, true) : null
     var not_ids = result.not_ids ? RoaringBitmap32.deserialize(result.not_ids, true) : null
 
+
+    //console.log(result);
+    var json = JSON.parse(result.raw);
+    //console.log(json.data);
+
     return {
-      bits_data_temp: JSON.parse(result.facets),
+      data: json.data || {},
+      counters: json.counters || {},
       ids: ids,
       not_ids: not_ids
     }
@@ -320,7 +332,7 @@ Facets.prototype = {
    * add disjunction_fields, conjunction_fields for custom behaviour
    * add facets_list which only makes computation for specific facets (not all like now)
    */
-  search: function(input, data) {
+  /*search: function(input, data) {
 
     var configuration = this.configuration();
     var config = configuration.aggregations;
@@ -356,15 +368,15 @@ Facets.prototype = {
     console.log('cross query ids with combination: ' + time);
     // -------------------------------
 
-    /**
+    [>*
      * calculating not ids
-     */
+     <]
     temp_facet.not_ids = helpers2.facets_ids(temp_facet['bits_data_temp'], input.not_filters, config);
 
-    /**
+    [>*
      * not filters calculations
      *
-     */
+     <]
 
     var time = new Date().getTime();
     var i = 0;
@@ -389,9 +401,9 @@ Facets.prototype = {
 
 
 
-    /**
+    [>*
      * end of not filters calculations
-     */
+     <]
 
     // -------------------------------
     var time = new Date().getTime();
@@ -427,13 +439,13 @@ Facets.prototype = {
     console.log('copying data  from bits_data_temp to data object: ' + time);
     // -------------------------------
 
-    /**
+    [>*
      * calculating ids
-     */
+     <]
     temp_facet.ids = helpers2.facets_ids(temp_facet['bits_data_temp'], input.filters, config);
 
     return temp_facet;
-  }
+  }*/
 }
 
 module.exports = Facets;

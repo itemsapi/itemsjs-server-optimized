@@ -35,6 +35,7 @@ describe('proximity search', function() {
     facets = new Facets();
     await facets.index({
       json_object: movies,
+      index_path: INDEX_PATH,
       append: false
     });
   });
@@ -45,7 +46,7 @@ describe('proximity search', function() {
       query: 'shawshank redemption test'
     }
 
-    var result = facets.proximity_search(input);
+    var result = facets.proximity_search(INDEX_PATH, input);
 
     assert.deepEqual(result.toArray(), [1]);
 
@@ -57,7 +58,7 @@ describe('proximity search', function() {
     var input = {
     }
 
-    var result = facets.proximity_search(input);
+    var result = facets.proximity_search(INDEX_PATH, input);
 
     assert.deepEqual(result.toArray(), []);
 
@@ -69,7 +70,7 @@ describe('proximity search', function() {
     var input = {
     }
 
-    var result = facets.proximity_search(input, new RoaringBitmap32([1]));
+    var result = facets.proximity_search(INDEX_PATH, input, new RoaringBitmap32([1]));
 
     assert.deepEqual(result.toArray(), []);
 
@@ -83,6 +84,7 @@ describe('full text', function() {
     facets = new Facets();
     await facets.index({
       json_object: data,
+      index_path: INDEX_PATH,
       append: false
     });
   });
@@ -93,7 +95,7 @@ describe('full text', function() {
       query: 'drama'
     }
 
-    var result = facets.fulltext(input);
+    var result = facets.fulltext(INDEX_PATH, input);
 
     assert.deepEqual(result.toArray(), [1, 4]);
 
@@ -101,7 +103,7 @@ describe('full text', function() {
       query: 'john'
     }
 
-    var result = facets.fulltext(input);
+    var result = facets.fulltext(INDEX_PATH, input);
 
     assert.deepEqual(result.toArray(), [1, 2]);
 
@@ -114,7 +116,7 @@ describe('full text', function() {
       query: 'drama john'
     }
 
-    var result = facets.fulltext(input);
+    var result = facets.fulltext(INDEX_PATH, input);
     assert.deepEqual(result.toArray(), [1, 2, 4]);
 
     done();
@@ -126,7 +128,7 @@ describe('full text', function() {
       query: 'drama2123'
     }
 
-    var result = facets.fulltext(input);
+    var result = facets.fulltext(INDEX_PATH, input);
     assert.deepEqual(result.toArray(), []);
     done();
   })
@@ -137,10 +139,8 @@ describe('full text', function() {
       query: 'nnn'
     }
 
-    var result = facets.fulltext(input);
+    var result = facets.fulltext(INDEX_PATH, input);
     assert.deepEqual(result.toArray(), []);
     done();
   })
-
 })
-

@@ -30,7 +30,7 @@ module.exports.concurrencyAsync = function(data) {
   });
 }
 
-module.exports.searchFacetsAsync = function(data) {
+module.exports.search_facets_async = function(data) {
   return new Promise(function (resolve, reject) {
 
     addon.search_facets_cb(data, function(err, res) {
