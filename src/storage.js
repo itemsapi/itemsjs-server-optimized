@@ -9,6 +9,9 @@ const _ = require('lodash');
 const fs = require('fs');
 const dir = './db.mdb';
 
+const MAP_SIZE = 100 * 1024 * 1024 * 1024;
+const MAX_DBS = 30;
+
 if (!fs.existsSync(dir)){
   fs.mkdirSync(dir);
 }
@@ -16,11 +19,11 @@ if (!fs.existsSync(dir)){
 const env = new lmdb.Env();
 env.open({
   path: './db.mdb',
-  mapSize: 100 * 1024 * 1024 * 1024,
+  mapSize: MAP_SIZE,
   maxReaders: 10,
   noTls: true,
   unsafeNoLock: true,
-  maxDbs: 30
+  maxDbs: MAX_DBS
 });
 
 var dbi = env.openDbi({
@@ -45,6 +48,14 @@ module.exports.dropDB = function() {
   })
 }
 
+module.exports.index = function(data) {
+
+  if (!fs.existsSync(data.index_path)) {
+    fs.mkdirSync(data.index_path);
+  }
+
+  addon.index(data);
+}
 
 module.exports.deleteItem = function(id) {
 
