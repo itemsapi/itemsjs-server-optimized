@@ -11,7 +11,6 @@ const algo = require('./algo');
 const fs = require('fs');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 const addon = require('./addon');
-const Promise = require('bluebird');
 
 /**
  * responsible for making faceted search
@@ -71,7 +70,7 @@ Facets.prototype = {
 
     var configuration = this.configuration(index_path);
     if (configuration.sorting_fields && Array.isArray(configuration.sorting_fields)) {
-      addon.load_sort_index(configuration.sorting_fields);
+      addon.load_sort_index(index_path, configuration.sorting_fields);
     }
   },
 
@@ -168,7 +167,7 @@ Facets.prototype = {
 
   /*
    */
-  pagination_sort_ids: function(ids, sort_field, order, per_page, page) {
+  pagination_sort_ids: function(index_path, ids, sort_field, order, per_page, page) {
 
     if (!sort_field) {
       if (order === 'desc') {
@@ -178,7 +177,7 @@ Facets.prototype = {
       }
 
     } else {
-      return Array.from(addon.sort_index(ids.serialize(true), sort_field, order, (page - 1) * per_page, per_page));
+      return Array.from(addon.sort_index(index_path, ids.serialize(true), sort_field, order, (page - 1) * per_page, per_page));
     }
   },
 
@@ -287,6 +286,8 @@ Facets.prototype = {
   search_native: async function(index_path, input, data) {
 
     data = data || {};
+
+    // this makes segmentation fault in async environment
     var configuration = this.configuration(index_path);
     var aggregations = configuration.aggregations;
 
@@ -294,6 +295,9 @@ Facets.prototype = {
       throw new Error('Not found configuration for faceted search');
     }
 
+    /*
+     * this is really slow in stress test
+     */
     var filters_array = _.map(input.filters, function(filter, key) {
       return {
         key: key,
@@ -338,8 +342,8 @@ Facets.prototype = {
 
     console.log(`native search time: ${new Date().getTime() - time}`);
 
-    var ids = result.ids ? RoaringBitmap32.deserialize(result.ids, true) : null
-    var not_ids = result.not_ids ? RoaringBitmap32.deserialize(result.not_ids, true) : null
+    var ids = result.ids ? RoaringBitmap32.deserialize(result.ids, true) : null;
+    var not_ids = result.not_ids ? RoaringBitmap32.deserialize(result.not_ids, true) : null;
 
     var json = JSON.parse(result.raw);
 

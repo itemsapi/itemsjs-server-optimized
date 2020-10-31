@@ -30,8 +30,10 @@ module.exports = function itemsjs() {
       return facets.list_indexes();
     },
 
-    load_sort_index: function() {
-      facets.load_sort_index();
+    load_sort_index: function(index_name) {
+
+      var index_path = `./data/${index_name}.mdb`
+      facets.load_sort_index(index_path);
     },
 
     tokenize: function(query) {

@@ -90,13 +90,13 @@ module.exports.search = async function(index_path, input, configuration, facets,
   var sorting_start_time = new Date().getTime();
 
   var time = new Date().getTime();
-  new_items_indexes = facets.pagination_sort_ids(filtered_indexes_bitmap, sort_field, order, per_page, page);
+  new_items_indexes = facets.pagination_sort_ids(index_path, filtered_indexes_bitmap, sort_field, order, per_page, page);
   console.log(`sort time: ${new Date().getTime() - time}`);
 
   if (proximity_ids_bitmap.size) {
 
     var time = new Date().getTime();
-    var proximity_ids = facets.pagination_sort_ids(proximity_ids_bitmap, sort_field, order, per_page, page)
+    var proximity_ids = facets.pagination_sort_ids(index_path, proximity_ids_bitmap, sort_field, order, per_page, page)
     console.log(`sort 2 time: ${new Date().getTime() - time}`);
 
     // make proximity search results first

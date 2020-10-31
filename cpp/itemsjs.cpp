@@ -244,13 +244,15 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
     //auto ans = new uint32_t[ids.cardinality()];
     //ids.toUint32Array(ans);
 
-    output["data"][sv][sv2] = nlohmann::json::array();;
-    for (auto bit_id: ids) {
 
-      output["data"][sv][sv2].push_back(bit_id);
+    if (true) {
+
+      output["data"][sv][sv2] = nlohmann::json::array();;
+      for (auto bit_id: ids) {
+
+        output["data"][sv][sv2].push_back(bit_id);
+      }
     }
-
-    //cout << lista << endl;
 
     ++i;
   }
@@ -470,12 +472,12 @@ map<string, map<string, double>> sorting;
 typedef boost::bimap<int, boost::bimaps::multiset_of<double>> results_bimap;
 typedef results_bimap::value_type position;
 
-// @TODO support index_path
-map<string, results_bimap> sorting2;
+map<string, map<string, results_bimap>> sorting3;
+
 
 void itemsjs::load_sort_index(const char *&index_path, std::vector<std::string> &sorting_fields) {
 
-  sorting2.clear();
+  sorting3[index_path].clear();
 
   auto env = lmdb::env::create();
   env.set_mapsize(DB_SIZE);
@@ -506,8 +508,7 @@ void itemsjs::load_sort_index(const char *&index_path, std::vector<std::string> 
         int id = std::stoi ((string)(key));
 
         // only add
-        sorting2[field].insert(position(id, (double) val));
-        //sorting2[field].left[id] = val;
+        sorting3[index_path][field].insert(position(id, (double) val));
       }
     }
     catch (lmdb::not_found_error) {
@@ -519,7 +520,7 @@ void itemsjs::load_sort_index(const char *&index_path, std::vector<std::string> 
 }
 
 
-std::vector<int> itemsjs::sort_index(const Roaring &ids, std::string field, std::string order, int offset, int limit) {
+std::vector<int> itemsjs::sort_index(const char *&index_path, const Roaring &ids, std::string field, std::string order, int offset, int limit) {
 
   std::vector<int> sorted_ids;
   std::set<int> found_ids;
@@ -578,9 +579,9 @@ std::vector<int> itemsjs::sort_index(const Roaring &ids, std::string field, std:
   };
 
   if (order == "asc") {
-    loop(sorting2[field].right.begin(), sorting2[field].right.end());
+    loop(sorting3[index_path][field].right.begin(), sorting3[index_path][field].right.end());
   } else if (order == "desc") {
-    loop(sorting2[field].right.rbegin(), sorting2[field].right.rend());
+    loop(sorting3[index_path][field].right.rbegin(), sorting3[index_path][field].right.rend());
   }
 
   return sorted_ids;
@@ -689,8 +690,8 @@ std::string itemsjs::index(const char *&index_path, string json_path, const stri
         sorting_dbs[field].put(wtxn, string_id.c_str(), val.c_str());
 
         // this is insert or update sort index value
-        sorting2[field].left.erase(id);
-        sorting2[field].insert(position(id, value));
+        sorting3[index_path][field].left.erase(id);
+        sorting3[index_path][field].insert(position(id, value));
         // does not work with right map
         //sorting2[field].left[id] = value;
       }
@@ -1126,15 +1127,19 @@ Napi::String itemsjs::JsonAtWrapped(const Napi::CallbackInfo& info) {
 Napi::TypedArrayOf<uint32_t> itemsjs::SortIndexWrapped(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
-  Napi::Buffer<char> buffer = info[0].As<Napi::Buffer<char>>();
+  Napi::String index_name = info[0].As<Napi::String>();
+  string name_a(index_name.ToString());
+  const char *index_path = name_a.c_str();
+
+  Napi::Buffer<char> buffer = info[1].As<Napi::Buffer<char>>();
   Roaring ids = Roaring::read(buffer.Data());
 
-  Napi::String field = info[1].As<Napi::String>();
-  Napi::String order = info[2].As<Napi::String>();
-  auto offset = info[3].As<Napi::Number>().Uint32Value();
-  auto limit = info[4].As<Napi::Number>().Uint32Value();
+  Napi::String field = info[2].As<Napi::String>();
+  Napi::String order = info[3].As<Napi::String>();
+  auto offset = info[4].As<Napi::Number>().Uint32Value();
+  auto limit = info[5].As<Napi::Number>().Uint32Value();
 
-  std::vector<int> sorted_ids = sort_index(ids, field, order, offset, limit);
+  std::vector<int> sorted_ids = sort_index(index_path, ids, field, order, offset, limit);
 
   Napi::TypedArrayOf<uint32_t> array2 = Napi::TypedArrayOf<uint32_t>::New(env, sorted_ids.size());
 
