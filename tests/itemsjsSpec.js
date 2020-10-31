@@ -7,6 +7,7 @@ const lib = require('./../src/lib');
 const items = require('./fixtures/items.json');
 var itemsjs = require('./../src/index')();
 const INDEX_PATH = './data/db.mdb';
+//const INDEX_PATH_2 = './data/test.mdb';
 const INDEX_NAME = 'db';
 
 describe('search', function() {
@@ -310,4 +311,59 @@ describe('crud', function() {
 
     done();
   })
+})
+
+describe('multi tenancy', function() {
+
+  var configuration = {
+    aggregations: {
+      tags: {
+        title: 'Tags',
+        conjunction: true,
+      },
+      actors: {
+        title: 'Actors',
+        conjunction: true,
+      },
+      category: {
+        title: 'Category',
+        conjunction: true,
+      }
+    }
+  }
+
+  before(async function() {
+    storage.dropDB('./data/test1.mdb');
+    storage.dropDB('./data/test2.mdb');
+
+    await itemsjs.index('test1', {
+      json_object: items,
+      append: false,
+      configuration: configuration
+    });
+
+    await itemsjs.index('test2', {
+      json_object: items,
+      append: false,
+      configuration: configuration
+    });
+  });
+
+  it('searches', function test(done) {
+
+    var result = itemsjs.search('test1');
+    assert.equal(result.data.items.length, 4);
+    var result = itemsjs.search('test2');
+    assert.equal(result.data.items.length, 4);
+
+    var result = itemsjs.delete_item('test1', 4);
+
+    var result = itemsjs.search('test1');
+    assert.equal(result.data.items.length, 3);
+    var result = itemsjs.search('test2');
+    assert.equal(result.data.items.length, 4);
+
+    done();
+  })
+
 })
