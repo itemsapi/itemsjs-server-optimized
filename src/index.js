@@ -90,16 +90,14 @@ module.exports = function itemsjs() {
      * sort
      * filters
      */
-    search: function(index_name, input) {
+    search: async function(index_name, input, options) {
       input = input || {};
+      options = options || {};
 
       // @TODO
-      if (0) {
-        throw new Error('invalid index name');
-      }
-
-      //const index_regex = /[A-Z0-9_]/g;
-      //const found = index_path.match(regex);
+      //if (0) {
+        //throw new Error('invalid index name');
+      //}
 
       var index_path = `./data/${index_name}.mdb`
 
@@ -114,10 +112,10 @@ module.exports = function itemsjs() {
        */
       input.aggregations = helpers.mergeAggregations(configuration.aggregations, input);
 
-      return lib.search(index_path, input, configuration, facets);
+      return await lib.search(index_path, input, configuration, facets, options);
     },
 
-    aggregation: function aggregation(index_name, input) {
+    aggregation: async function aggregation(index_name, input) {
 
       var index_path = `./data/${index_name}.mdb`
 
@@ -126,7 +124,7 @@ module.exports = function itemsjs() {
       if (!configuration) {
         throw new Error('index first then search');
       }
-      return lib.aggregation(index_path, input, configuration, facets);
+      return await lib.aggregation(index_path, input, configuration, facets);
     },
   }
 }

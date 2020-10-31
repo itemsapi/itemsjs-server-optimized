@@ -53,6 +53,9 @@ module.exports.dropDB = function(index_path) {
     });
     dbi2.drop();
   })
+
+  dbi.close();
+  env.close();
 }
 
 module.exports.index = function(data) {
@@ -66,10 +69,6 @@ module.exports.index = function(data) {
 
 module.exports.deleteItem = function(index_path, id) {
 
-  var open = openDB(index_path);
-  var dbi = open.dbi;
-  var env = open.env;
-
   var internal_id = module.exports.getInternalId(index_path, id);
 
   if (internal_id) {
@@ -78,10 +77,6 @@ module.exports.deleteItem = function(index_path, id) {
 }
 
 module.exports.updateItem = function(index_path, item, options) {
-
-  var open = openDB(index_path);
-  var dbi = open.dbi;
-  var env = open.env;
 
   options = options || {};
 
@@ -139,6 +134,9 @@ module.exports.deleteConfiguration = function(index_path, configuration) {
   } catch (err) {
   }
   txn.commit();
+
+  dbi.close();
+  env.close();
 }
 
 module.exports.setConfiguration = function(index_path, configuration) {
@@ -150,6 +148,9 @@ module.exports.setConfiguration = function(index_path, configuration) {
   var txn = env.beginTxn();
   var binary = txn.putBinary(dbi, new Buffer.from('configuration'), new Buffer.from(JSON.stringify(configuration)));
   txn.commit();
+
+  dbi.close();
+  env.close();
 }
 
 module.exports.getConfiguration = function(index_path) {
@@ -163,6 +164,8 @@ module.exports.getConfiguration = function(index_path) {
   });
   var binary = txn.getBinary(dbi, new Buffer.from('configuration'));
   txn.abort();
+  dbi.close();
+  env.close();
 
   if (!binary) {
     return null;
@@ -193,6 +196,9 @@ module.exports.getInternalId = function(index_path, id) {
   txn.abort();
   dbi_pkeys.close();
 
+  dbi.close();
+  env.close();
+
 
   if (binary) {
     var string = binary.toString();
@@ -222,6 +228,8 @@ module.exports.getSortingValue = function(index_path, field, internal_id) {
   txn.abort();
   dbi_sorting.close();
 
+  dbi.close();
+  env.close();
 
   if (binary) {
     var string = binary.toString();
@@ -260,6 +268,8 @@ module.exports.getKeysList = function(index_path) {
   cursor.close();
   txn.abort();
   dbi2.close();
+  dbi.close();
+  env.close();
 
   return array;
 }
@@ -282,6 +292,8 @@ module.exports.getSearchTermIndex = function(index_path, key) {
   var binary = txn.getBinary(dbi_terms, new Buffer.from('' + key));
   txn.abort();
   dbi_terms.close();
+  dbi.close();
+  env.close();
 
   if (!binary) {
     return;
@@ -312,6 +324,8 @@ module.exports.getFilterIndex = function(index_path, key) {
   var binary = txn.getBinary(dbi_filters, new Buffer.from(key));
   txn.abort();
   dbi_filters.close();
+  dbi.close();
+  env.close();
 
   if (!binary) {
     return;
@@ -359,6 +373,9 @@ module.exports.getFilterIndexes = function(index_path) {
 
   txn.abort();
   dbi_filters.close();
+  dbi.close();
+  env.close();
+
   return output;
 }
 
@@ -385,7 +402,8 @@ module.exports.getItem = function(index_path, id) {
   var binary = txn.getBinary(dbi_items, new Buffer.from(id + ''));
   txn.abort();
   dbi_items.close();
-
+  dbi.close();
+  env.close();
 
   if (!binary) {
     return;
@@ -426,6 +444,9 @@ module.exports.getItems = function(index_path, ids) {
 
   txn.abort();
   dbi_items.close();
+  dbi.close();
+  env.close();
+
 
   return output;
 }
@@ -461,6 +482,8 @@ module.exports.getIdsBitmap = function(index_path) {
 
   var bitmap = RoaringBitmap32.deserialize(binary, true);
 
+  dbi.close();
+  env.close();
 
   return bitmap;
 }

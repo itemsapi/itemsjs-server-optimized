@@ -284,7 +284,7 @@ Facets.prototype = {
     return temp_facet;
   },
 
-  search_native: function(index_path, input, data) {
+  search_native: async function(index_path, input, data) {
 
     data = data || {};
     var configuration = this.configuration(index_path);
@@ -315,14 +315,26 @@ Facets.prototype = {
     }
 
     var time = new Date().getTime();
-    var result = addon.search_facets({
+
+    var query = {
       input: input,
       filters_array: filters_array,
       aggregations: aggregations,
       facets_fields, facets_fields,
       query_ids: query_ids,
       index_path: index_path
-    })
+    }
+
+    var result;
+
+    //console.log(data);
+
+    if (data.is_async === true) {
+      console.log(`async searching`);
+      result = await addon.search_facets_async(query);
+    } else {
+      result = addon.search_facets(query);
+    }
 
     console.log(`native search time: ${new Date().getTime() - time}`);
 

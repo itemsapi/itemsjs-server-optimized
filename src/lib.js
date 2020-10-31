@@ -11,11 +11,10 @@ const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 /**
  * search by filters
  */
-module.exports.search = function(index_path, input, configuration, facets) {
+module.exports.search = async function(index_path, input, configuration, facets, options) {
 
   input = input || {};
-
-  //console.log(input);
+  options = options || {};
 
   var per_page = parseInt(input.per_page || 12);
   var page = parseInt(input.page || 1);
@@ -48,8 +47,9 @@ module.exports.search = function(index_path, input, configuration, facets) {
 
   var facet_result;
 
-  facet_result = facets.search_native(index_path, input, {
-    query_ids: query_ids
+  facet_result = await facets.search_native(index_path, input, {
+    query_ids: query_ids,
+    is_async: options.is_async
   });
 
   new_facet_time = new Date().getTime() - new_facet_time;
@@ -144,7 +144,7 @@ module.exports.search = function(index_path, input, configuration, facets) {
  * returns list of elements in specific facet
  * useful for autocomplete or list all aggregation options
  */
-module.exports.aggregation = function (index_path, input, configuration, facets) {
+module.exports.aggregation = async function (index_path, input, configuration, facets) {
 
   if (!input || !input.name) {
     throw new Error('field name is required');
@@ -168,7 +168,7 @@ module.exports.aggregation = function (index_path, input, configuration, facets)
 
   configuration.aggregations[input.name].size = 10000;
 
-  var result = module.exports.search(index_path, search_input, configuration, facets);
+  var result = await module.exports.search(index_path, search_input, configuration, facets);
   var buckets = result.data.aggregations[input.name].buckets;
 
   if (query) {

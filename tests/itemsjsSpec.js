@@ -39,16 +39,14 @@ describe('search', function() {
     done();
   });
 
-  it('index is empty so cannot search', function test(done) {
+  it('index is empty so cannot search', async function test() {
 
     try {
 
-      var result = itemsjs.search(INDEX_NAME);
+      var result = await itemsjs.search(INDEX_NAME);
     } catch (err) {
       assert.equal(err.message, 'index first then search');
     }
-
-    done();
   })
 
   /*it('cannot search with invalid index name', function test(done) {
@@ -71,7 +69,7 @@ describe('search', function() {
       configuration: configuration
     });
 
-    var result = itemsjs.search(INDEX_NAME, {
+    var result = await itemsjs.search(INDEX_NAME, {
       filters: {
         tags: ['a'],
         category: ['drama']
@@ -83,6 +81,29 @@ describe('search', function() {
 
   })
 
+  it('async search with two filters', async function test() {
+
+    await itemsjs.index(INDEX_NAME, {
+      json_object: items,
+      append: false,
+      configuration: configuration
+    });
+
+    var result = await itemsjs.search(INDEX_NAME, {
+      filters: {
+        tags: ['a'],
+        category: ['drama']
+      }
+    }, {
+      is_async: true
+    });
+
+    assert.equal(result.data.items.length, 2);
+    assert.equal(result.data.aggregations.tags.buckets[0].doc_count, 2);
+    //process.exit();
+  })
+
+
   it('searches with filter and query', async function test() {
 
 
@@ -92,7 +113,7 @@ describe('search', function() {
       configuration: configuration
     });
 
-    var result = itemsjs.search(INDEX_NAME, {
+    var result = await itemsjs.search(INDEX_NAME, {
       filters: {
         tags: ['a'],
       },
@@ -114,7 +135,7 @@ describe('search', function() {
       append: false
     });
 
-    var result = itemsjs.search(INDEX_NAME, {
+    var result = await itemsjs.search(INDEX_NAME, {
       filters: {
       }
     });
@@ -130,7 +151,7 @@ describe('search', function() {
       append: false
     });
 
-    var result = itemsjs.search(INDEX_NAME, {
+    var result = await itemsjs.search(INDEX_NAME, {
       not_filters: {
         tags: ['c']
       }
@@ -147,7 +168,7 @@ describe('search', function() {
       append: false
     });
 
-    var result = itemsjs.search(INDEX_NAME, {
+    var result = await itemsjs.search(INDEX_NAME, {
       not_filters: {
         tags: ['c', 'e']
       }
@@ -175,14 +196,11 @@ describe('no configuration', function() {
     });
   });
 
-  it('searches with two filters', function test(done) {
+  it('searches with two filters', async function test() {
 
-    var result = itemsjs.search(INDEX_NAME, {
-    });
+    var result = await itemsjs.search(INDEX_NAME);
 
     assert.equal(result.data.items.length, 4);
-
-    done();
   })
 })
 
@@ -215,37 +233,28 @@ describe('crud', function() {
     });
   });
 
-  it('searches', function test(done) {
+  it('searches', async function test() {
 
-    var result = itemsjs.search(INDEX_NAME, {
-    });
+    var result = await itemsjs.search(INDEX_NAME);
     assert.equal(result.data.items.length, 4);
-
-    done();
   })
 
-  it('get first item', function test(done) {
+  it('get first item', async function test() {
 
     var result = itemsjs.get_item(INDEX_NAME, 1);
-
-    //console.log(result);
     assert.equal(result.id, 1);
     assert.equal(result.name, 'movie1');
-
-    done();
   })
 
-  it('delete last item', function test(done) {
+  it('delete last item', async function test() {
 
     var result = itemsjs.delete_item(INDEX_NAME, 4);
 
-    var result = itemsjs.search(INDEX_NAME);
+    var result = await itemsjs.search(INDEX_NAME);
     assert.equal(result.data.items.length, 3);
-
-    done();
   })
 
-  it('partial update first item', function test(done) {
+  it('partial update first item', async function test() {
 
     var result = itemsjs.partial_update_item(INDEX_NAME, 1, {
       name: 'movie100'
@@ -254,11 +263,9 @@ describe('crud', function() {
     var result = itemsjs.get_item(INDEX_NAME, 1);
     assert.equal(result.id, 1);
     assert.equal(result.name, 'movie100');
-
-    done();
   })
 
-  it('update first item', function test(done) {
+  it('update first item', async function test() {
 
     var result = itemsjs.partial_update_item(INDEX_NAME, 1, {
       name: 'movie1000'
@@ -267,28 +274,21 @@ describe('crud', function() {
     var result = itemsjs.get_item(INDEX_NAME, 1);
     assert.equal(result.id, 1);
     assert.equal(result.name, 'movie1000');
-
-    done();
   })
 
-  it('gets configuration', function test(done) {
+  it('gets configuration', async function test() {
 
     var result = itemsjs.get_configuration(INDEX_NAME);
-
     assert.deepEqual(result, configuration);
-
-    done();
   })
 
-  it('makes aggregation', function test(done) {
+  it('makes aggregation', async function test() {
 
-    var result = itemsjs.aggregation(INDEX_NAME, {
+    var result = await itemsjs.aggregation(INDEX_NAME, {
       name: 'tags'
     });
 
     assert.deepEqual(result.data.buckets[0].key, 'a');
-
-    done();
   })
 
   it('list all indexes', async function test() {
@@ -299,17 +299,15 @@ describe('crud', function() {
     //assert.deepEqual(result.data.buckets[0].key, 'a');
   })
 
-  it('reset index', function test(done) {
+  it('reset index', async function test() {
 
     var result = itemsjs.reset(INDEX_NAME);
 
     try {
-      var result = itemsjs.search(INDEX_NAME);
+      var result = await itemsjs.search(INDEX_NAME);
     } catch (err) {
       assert.equal(err.message, 'index first then search');
     }
-
-    done();
   })
 })
 
@@ -349,21 +347,19 @@ describe('multi tenancy', function() {
     });
   });
 
-  it('searches', function test(done) {
+  it('searches', async function test() {
 
-    var result = itemsjs.search('test1');
+    var result = await itemsjs.search('test1');
     assert.equal(result.data.items.length, 4);
-    var result = itemsjs.search('test2');
+    var result = await itemsjs.search('test2');
     assert.equal(result.data.items.length, 4);
 
     var result = itemsjs.delete_item('test1', 4);
 
-    var result = itemsjs.search('test1');
+    var result = await itemsjs.search('test1');
     assert.equal(result.data.items.length, 3);
-    var result = itemsjs.search('test2');
+    var result = await itemsjs.search('test2');
     assert.equal(result.data.items.length, 4);
-
-    done();
   })
 
 })

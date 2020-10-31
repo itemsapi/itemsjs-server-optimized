@@ -3,13 +3,9 @@
 const assert = require('assert');
 const storage = require('./../src/storage');
 const addon = require('./../src/addon');
-const Facets = require('./../src/facets');
-//const data = require('./fixtures/items.json');
+const itemsjs = require('./../src/index')();
 const _ = require('lodash');
 const Promise = require('bluebird');
-
-var facets = new Facets();
-
 
 var config = {
   aggregations: {
@@ -37,31 +33,16 @@ var input = {
     tags: ['prison']
     //genres: ['Action']
   }
-}
-
-var filters_array = _.map(input.filters, function(filter, key) {
-  return {
-    key: key,
-    values: filter,
-    conjunction: config.aggregations[key].conjunction !== false
-  }
-})
-
-filters_array.sort(function(a, b) {
-  return a.conjunction > b.conjunction ? 1 : -1;
-})
-
-var facets_fields = Object.keys(config.aggregations);
+};
 
 (async function() {
 
-  for (var i = 0 ; i < 10 ; ++i) {
+  for (var i = 0 ; i < 0 ; ++i) {
 
-    var index = storage.index({
+    var index = await itemsjs.index('db_' + i, {
       json_path: './imdb.json',
-      index_path: './data/db_' + i + '.mdb',
-      faceted_fields: ['actors', 'genres', 'year', 'tags'],
-      append: false
+      append: false,
+      configuration: config
     });
   }
 
@@ -73,31 +54,24 @@ var facets_fields = Object.keys(config.aggregations);
   .map(async i => {
 
     var number = i % 10;
-    await addon.search_facets_async({
-      input: input,
-      filters_array: filters_array,
-      aggregations: config.aggregations,
-      facets_fields, facets_fields,
-      query_ids: null,
-      index_path: './data/db_' + number + '.mdb'
+    await itemsjs.search('db_' + number, input, {
+      is_async: true
     })
     .then(res => {
       //console.log('res')
       //console.log(res)
     })
     .catch(res => {
-      //console.log('catch')
-      //console.log(res)
+      console.log('catch')
+      console.log(res)
     });
-
-
   }, {
     concurrency: 10
   })
 
   console.log(`bench: ${new Date().getTime() - time}`);
 
-  var time = new Date().getTime();
+  /*var time = new Date().getTime();
   var number = i % 10;
 
   addon.search_facets({
@@ -109,6 +83,6 @@ var facets_fields = Object.keys(config.aggregations);
     index_path: './data/db_' + number + '.mdb'
   })
 
-  console.log(`bench: ${new Date().getTime() - time}`);
+  console.log(`bench: ${new Date().getTime() - time}`);*/
 
 })();
