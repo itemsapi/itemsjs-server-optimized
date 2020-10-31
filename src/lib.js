@@ -145,6 +145,11 @@ module.exports.search = function(index_path, input, configuration, facets) {
  * useful for autocomplete or list all aggregation options
  */
 module.exports.aggregation = function (index_path, input, configuration, facets) {
+
+  if (!input || !input.name) {
+    throw new Error('field name is required');
+  }
+
   var per_page = input.per_page || 10;
   var page = input.page || 1;
   var query = input.query;
@@ -160,9 +165,6 @@ module.exports.aggregation = function (index_path, input, configuration, facets)
   search_input.page = 1;
   search_input.per_page = 0;
 
-  if (!input.name) {
-    throw new Error('field name is required');
-  }
 
   configuration.aggregations[input.name].size = 10000;
 

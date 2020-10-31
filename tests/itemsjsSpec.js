@@ -184,3 +184,130 @@ describe('no configuration', function() {
     done();
   })
 })
+
+describe('crud', function() {
+
+  var configuration = {
+    aggregations: {
+      tags: {
+        title: 'Tags',
+        conjunction: true,
+      },
+      actors: {
+        title: 'Actors',
+        conjunction: true,
+      },
+      category: {
+        title: 'Category',
+        conjunction: true,
+      }
+    }
+  }
+
+  before(async function() {
+    storage.deleteConfiguration(INDEX_PATH);
+    storage.dropDB(INDEX_PATH);
+    await itemsjs.index(INDEX_NAME, {
+      json_object: items,
+      append: false,
+      configuration: configuration
+    });
+  });
+
+  it('searches', function test(done) {
+
+    var result = itemsjs.search(INDEX_NAME, {
+    });
+    assert.equal(result.data.items.length, 4);
+
+    done();
+  })
+
+  it('get first item', function test(done) {
+
+    var result = itemsjs.get_item(INDEX_NAME, 1);
+
+    //console.log(result);
+    assert.equal(result.id, 1);
+    assert.equal(result.name, 'movie1');
+
+    done();
+  })
+
+  it('delete last item', function test(done) {
+
+    var result = itemsjs.delete_item(INDEX_NAME, 4);
+
+    var result = itemsjs.search(INDEX_NAME);
+    assert.equal(result.data.items.length, 3);
+
+    done();
+  })
+
+  it('partial update first item', function test(done) {
+
+    var result = itemsjs.partial_update_item(INDEX_NAME, 1, {
+      name: 'movie100'
+    });
+
+    var result = itemsjs.get_item(INDEX_NAME, 1);
+    assert.equal(result.id, 1);
+    assert.equal(result.name, 'movie100');
+
+    done();
+  })
+
+  it('update first item', function test(done) {
+
+    var result = itemsjs.partial_update_item(INDEX_NAME, 1, {
+      name: 'movie1000'
+    });
+
+    var result = itemsjs.get_item(INDEX_NAME, 1);
+    assert.equal(result.id, 1);
+    assert.equal(result.name, 'movie1000');
+
+    done();
+  })
+
+  it('gets configuration', function test(done) {
+
+    var result = itemsjs.get_configuration(INDEX_NAME);
+
+    assert.deepEqual(result, configuration);
+
+    done();
+  })
+
+  it('makes aggregation', function test(done) {
+
+    var result = itemsjs.aggregation(INDEX_NAME, {
+      name: 'tags'
+    });
+
+    assert.deepEqual(result.data.buckets[0].key, 'a');
+
+    done();
+  })
+
+  it('list all indexes', async function test() {
+
+    var result = await itemsjs.list_indexes();
+    console.log(result);
+
+    //assert.deepEqual(result.data.buckets[0].key, 'a');
+  })
+
+  it('reset index', function test(done) {
+
+    var result = itemsjs.reset(INDEX_NAME);
+
+    try {
+      var result = itemsjs.search(INDEX_NAME);
+    } catch (err) {
+      assert.equal(err.message, 'index first then search');
+    }
+
+    done();
+  })
+})

@@ -2,15 +2,16 @@
  * Author: Mateusz Rzepa
  * Copyright: 2015-2020, ItemsAPI
  */
+
 // @TODO change file name from facets to index
 const _ = require('lodash');
 const helpers2 = require('./helpers2');
 const storage = require('./storage');
 const algo = require('./algo');
-//const fs = require('fs-extra');
+const fs = require('fs');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
-//const addon = require('bindings')('itemsjs_addon.node');
 const addon = require('./addon');
+const Promise = require('bluebird');
 
 /**
  * responsible for making faceted search
@@ -122,6 +123,23 @@ Facets.prototype = {
 
     storage.setConfiguration(index_path, configuration);
   },
+
+  list_indexes: async function() {
+
+    var output = [];
+
+    fs.readdirSync('./data').forEach(file => {
+
+      if (file.match(/\.mdb$/)) {
+        output.push(file.slice(0, -4));
+      }
+    });
+
+    return {
+      data: output
+    }
+  },
+
 
   configuration: function(index_path) {
     return storage.getConfiguration(index_path);

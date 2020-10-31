@@ -470,6 +470,7 @@ map<string, map<string, double>> sorting;
 typedef boost::bimap<int, boost::bimaps::multiset_of<double>> results_bimap;
 typedef results_bimap::value_type position;
 
+// @TODO support index_path
 map<string, results_bimap> sorting2;
 
 void itemsjs::load_sort_index(const char *&index_path, std::vector<std::string> &sorting_fields) {
