@@ -41,3 +41,5 @@ temp/
 flightplan.js
 build/
 *.mdb/
+imdb.json
+imdb2.json
