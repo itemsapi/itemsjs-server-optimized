@@ -5,6 +5,7 @@ const Facets = require('./../src/facets');
 const storage = require('./../src/storage');
 const lib = require('./../src/lib');
 const items = require('./fixtures/movies.json');
+const INDEX_PATH = './data/db.mdb';
 var facets = new Facets();
 
 var configuration = {
@@ -28,69 +29,62 @@ var configuration = {
 describe('aggregation / facet', function() {
 
   before(async function() {
-    storage.dropDB();
+    storage.dropDB(INDEX_PATH);
 
-    await facets.index({
+    await facets.index(INDEX_PATH, {
       json_object: items,
       append: false,
       configuration: configuration
     });
   });
 
-  it('makes error if name does not exist', function test(done) {
+  it('makes error if name does not exist', async function test() {
 
     try {
-      var result = lib.aggregation({
+      var result = await lib.aggregation(INDEX_PATH, {
         name: 'category2'
       }, configuration, facets);
     } catch (err) {
       assert.equal(err.message, 'Please define aggregation "category2" in config');
     }
 
-    done();
   })
 
-  it('makes single facet', function test(done) {
+  it('makes single facet', async function test() {
 
-    var result = lib.aggregation({
+    var result = await lib.aggregation(INDEX_PATH, {
       name: 'genres'
     }, configuration, facets);
 
     assert.equal(result.data.buckets.length, 10);
 
-    done();
   })
 
-  it('makes single facet with pagination', function test(done) {
+  it('makes single facet with pagination', async function test() {
 
-    var result = lib.aggregation({
+    var result = await lib.aggregation(INDEX_PATH, {
       name: 'genres',
       page: 1,
       per_page: 1
     }, configuration, facets);
 
     assert.equal(result.data.buckets.length, 1);
-
-    done();
   })
 
-  it('makes single facet pagination', function test(done) {
+  it('makes single facet pagination', async function test() {
 
-    var result = lib.aggregation({
+    var result = await lib.aggregation(INDEX_PATH, {
       name: 'genres',
       page: 1,
       per_page: 12
     }, configuration, facets);
 
     assert.equal(result.data.buckets.length, 12);
-    console.log(result.data);
-
-    done();
   })
 
-  it('makes single facet with query', function test(done) {
+  it('makes single facet with query', async function test() {
 
-    var result = lib.aggregation({
+    var result = await lib.aggregation(INDEX_PATH, {
       name: 'genres',
       page: 1,
       query: 'action',
@@ -98,13 +92,11 @@ describe('aggregation / facet', function() {
     }, configuration, facets);
 
     assert.equal(result.data.buckets.length, 1);
-
-    done();
   })
 
-  it('makes single facet with wildcard query', function test(done) {
+  it('makes single facet with wildcard query', async function test() {
 
-    var result = lib.aggregation({
+    var result = await lib.aggregation(INDEX_PATH, {
       name: 'genres',
       page: 1,
       query: 'acti*',
@@ -112,13 +104,11 @@ describe('aggregation / facet', function() {
     }, configuration, facets);
 
     assert.equal(result.data.buckets.length, 1);
-
-    done();
   })
 
-  it('makes single facet with wildcard query 2', function test(done) {
+  it('makes single facet with wildcard query 2', async function test() {
 
-    var result = lib.aggregation({
+    var result = await lib.aggregation(INDEX_PATH, {
       name: 'genres',
       page: 1,
       query: '*ctio*',
@@ -126,8 +116,5 @@ describe('aggregation / facet', function() {
     }, configuration, facets);
 
     assert.equal(result.data.buckets.length, 1);
-
-    done();
   })
 })
-

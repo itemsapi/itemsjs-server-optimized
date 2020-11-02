@@ -8,18 +8,19 @@ const addon = require('bindings')('itemsjs_addon.node');
 const Facets = require('./../src/facets');
 const data = require('./fixtures/items.json');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
+const INDEX_PATH = './data/db.mdb';
 
 var facets = new Facets();
 
 describe('indexing', function() {
 
-  before(function(done) {
-    storage.dropDB();
+  /*before(function(done) {
+    storage.dropDB(INDEX_PATH);
 
     addon.index({
       json_path: './tests/fixtures/movies.json',
       faceted_fields: ['actors', 'genres', 'year', 'director'],
-      //sorting_fields: ['votes'],
+      index_path: INDEX_PATH,
       sorting_fields: ['votes', 'year', 'rating', 'position'],
       append: false
     });
@@ -29,14 +30,14 @@ describe('indexing', function() {
 
   it('checks sorting', function test(done) {
 
-    assert.deepEqual(1790841, storage.getSortingValue('votes', 1));
-    assert.deepEqual(1222640, storage.getSortingValue('votes', 2));
+    assert.deepEqual(1790841, storage.getSortingValue(INDEX_PATH, 'votes', 1));
+    assert.deepEqual(1222640, storage.getSortingValue(INDEX_PATH, 'votes', 2));
 
-    assert.deepEqual(1972, storage.getSortingValue('year', 2));
-    assert.deepEqual(1994, storage.getSortingValue('year', 1));
-    assert.deepEqual(1994, storage.getSortingValue('year', 5));
+    assert.deepEqual(1972, storage.getSortingValue(INDEX_PATH, 'year', 2));
+    assert.deepEqual(1994, storage.getSortingValue(INDEX_PATH, 'year', 1));
+    assert.deepEqual(1994, storage.getSortingValue(INDEX_PATH, 'year', 5));
 
-    assert.deepEqual(1, storage.getSortingValue('position', 20));
+    assert.deepEqual(1, storage.getSortingValue(INDEX_PATH, 'position', 20));
 
     var ids = new RoaringBitmap32([1, 2, 3, 4]).serialize(true);
     var sorted_index = Array.from(addon.sort_index(ids, 'votes', 'asc', 0, 4));
@@ -71,7 +72,7 @@ describe('indexing', function() {
 
   it('checks sorting by double / float', function test(done) {
 
-    assert.deepEqual(9.3, storage.getSortingValue('rating', 1));
+    assert.deepEqual(9.3, storage.getSortingValue(INDEX_PATH, 'rating', 1));
 
     var ids = new RoaringBitmap32([1, 2, 3, 4]).serialize(true);
     var sorted_index = Array.from(addon.sort_index(ids, 'rating', 'asc', 0, 4));
@@ -106,7 +107,7 @@ describe('indexing', function() {
 
   it('load sort index', function test(done) {
 
-    addon.load_sort_index(['year', 'votes', 'nonono']);
+    addon.load_sort_index(INDEX_PATH, ['year', 'votes', 'nonono']);
 
     var ids = new RoaringBitmap32([1, 2, 3, 4]).serialize(true);
     var sorted_index = Array.from(addon.sort_index(ids, 'year', 'asc', 0, 4));
@@ -118,7 +119,7 @@ describe('indexing', function() {
 
   it('load sort index with not existing field', function test(done) {
 
-    addon.load_sort_index(['year', 'votes', 'nonono']);
+    addon.load_sort_index(INDEX_PATH, ['year', 'votes', 'nonono']);
 
     var ids = new RoaringBitmap32([1, 2, 3, 4]).serialize(true);
     var sorted_index = Array.from(addon.sort_index(ids, 'year', 'asc', 0, 4));
@@ -142,11 +143,12 @@ describe('indexing', function() {
     addon.index({
       json_path: './tests/fixtures/movies.json',
       faceted_fields: ['actors', 'genres', 'year', 'director'],
+      index_path: INDEX_PATH,
       sorting_fields: ['votes', 'year', 'rating'],
       append: true
     });
 
-    addon.load_sort_index(['year', 'votes']);
+    addon.load_sort_index(INDEX_PATH, ['year', 'votes']);
 
     var ids = new RoaringBitmap32([30, 31]).serialize(true);
     var sorted_index = Array.from(addon.sort_index(ids, 'year', 'asc', 0, 2));
@@ -157,7 +159,71 @@ describe('indexing', function() {
     assert.deepEqual(40, sorted_index.length);
 
     done();
+  })*/
+
+  it('sort two indexes separately', function test(done) {
+
+    storage.dropDB('./data/test_1.mdb');
+    storage.dropDB('./data/test_2.mdb');
+
+    addon.index({
+      json_object: [{
+        name: 'Apple',
+        price: 6
+      }, {
+        name: 'Banana',
+        price: 3
+      }, {
+        name: 'Kiwi',
+        price: 5
+      }],
+      index_path: './data/test_1.mdb',
+      sorting_fields: ['price'],
+      append: false
+    });
+
+    addon.index({
+      json_object: [{
+        name: 'Orange',
+        price: 10
+      }, {
+        name: 'Grapefruit',
+        price: 5
+      }],
+      index_path: './data/test_2.mdb',
+      sorting_fields: ['price'],
+      append: false
+    });
+
+    // items should be sorted after index by default
+    var ids = new RoaringBitmap32([1, 2, 3]).serialize(true);
+    var sorted_index = Array.from(addon.sort_index('./data/test_1.mdb', ids, 'price', 'asc', 0, 3));
+    assert.deepEqual([2, 3, 1], sorted_index);
+
+    // items should be sorted after index by default
+    var ids = new RoaringBitmap32([1, 2, 3]).serialize(true);
+    var sorted_index = Array.from(addon.sort_index('./data/test_2.mdb', ids, 'price', 'asc', 0, 3));
+    assert.deepEqual([2, 1], sorted_index);
+
+    addon.load_sort_index('./data/test_1.mdb', ['price']);
+
+    assert.deepEqual(6, storage.getSortingValue('./data/test_1.mdb', 'price', 1));
+    assert.deepEqual(3, storage.getSortingValue('./data/test_1.mdb', 'price', 2));
+    assert.deepEqual(5, storage.getSortingValue('./data/test_1.mdb', 'price', 3));
+
+    // items should be re-sorted
+    var ids = new RoaringBitmap32([1, 2, 3]).serialize(true);
+    var sorted_index = Array.from(addon.sort_index('./data/test_1.mdb', ids, 'price', 'asc', 0, 3));
+    assert.deepEqual([2, 3, 1], sorted_index);
+
+    var ids = new RoaringBitmap32([1, 2, 3]).serialize(true);
+    var sorted_index = Array.from(addon.sort_index('./data/test_1.mdb', ids, 'price', 'desc', 0, 3));
+    assert.deepEqual([1, 3, 2], sorted_index);
+
+    var ids = new RoaringBitmap32([1, 2, 3]).serialize(true);
+    var sorted_index = Array.from(addon.sort_index('./data/test_2.mdb', ids, 'price', 'asc', 0, 3));
+    assert.deepEqual([2, 1], sorted_index);
+
+    done();
   })
-
 })
-

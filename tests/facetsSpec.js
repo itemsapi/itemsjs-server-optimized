@@ -7,6 +7,7 @@ const helpers2 = require('./../src/helpers2');
 const storage = require('./../src/storage');
 const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 const items = require('./fixtures/items.json');
+const INDEX_PATH = './data/db.mdb';
 
 //https://jsfiddle.net/apsq2goz/4/
 
@@ -32,16 +33,16 @@ describe('conjunctive search', function() {
   }
 
   before(async function() {
-    storage.dropDB();
+    storage.dropDB(INDEX_PATH);
     facets = new Facets();
-    await facets.index({
+    await facets.index(INDEX_PATH, {
       json_object: items,
       append: false,
       configuration: configuration
     });
   });
 
-  it('returns facets for two fields (tags, actors)', function test(done) {
+  it('returns facets for two fields (tags, actors)', async function test() {
 
     var input = {
       filters: {
@@ -49,39 +50,21 @@ describe('conjunctive search', function() {
       }
     }
 
-    var result = facets.search(input, {
-      test: true
-    });
+    var result = await facets.search_native(INDEX_PATH, input);
 
     assert.deepEqual(result.data.tags.a, [1, 3, 4]);
     assert.deepEqual(result.data.tags.c, [1, 3, 4]);
     assert.deepEqual(result.data.tags.e, []);
     assert.deepEqual(result.data.actors.john, [1]);
     assert.deepEqual(result.data.category.comedy, [3]);
-
-    var ids = helpers2.facets_ids(result['bits_data_temp'], input.filters, configuration.aggregations);
-    //assert.deepEqual(ids.toArray(), [1, 3, 4]);
     assert.deepEqual(result.ids.toArray(), [1, 3, 4]);
 
     var buckets = helpers2.getBuckets(result, input, configuration.aggregations);
-    //console.log(buckets.tags.buckets);
     assert.deepEqual(buckets.tags.buckets[0].doc_count, 3);
     assert.deepEqual(buckets.tags.buckets[0].key, 'c');
-
-
-
-    //var result = itemsjs.search(input);
-    //assert.deepEqual(result.pagination.total, 3);
-    //assert.deepEqual(result.data.aggregations.tags.buckets[0].doc_count, 3);
-    //assert.deepEqual(result.data.aggregations.tags.buckets[0].key, 'c');
-
-    done();
   })
 
-
-
-
-  it('checks if search is working on copy data', function test(done) {
+  it('checks if search is working on copy data', async function test() {
 
     var input = {
       filters: {
@@ -89,30 +72,19 @@ describe('conjunctive search', function() {
       }
     }
 
-    var result = facets.search(input, {
-      test: true
-    });
-
-    //assert.deepEqual(result.bits_data.tags.a.toArray(), []);
+    var result = await facets.search_native(INDEX_PATH, input);
     assert.deepEqual(result.data.tags.a, [2]);
     assert.deepEqual(result.data.tags.e, [2]);
-    //assert.deepEqual(result.bits_data.tags.e.toArray(), [2]);
-    //assert.deepEqual(result.data.actors.john, [1]);
-
-    done();
-
   })
 
-  it('returns facets for empty input', function test(done) {
+  it('returns facets for empty input', async function test() {
 
     var input = {
       filters: {
       }
     }
 
-    var result = facets.search(input, {
-      test: true
-    });
+    var result = await facets.search_native(INDEX_PATH, input);
 
     assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
     assert.deepEqual(result.data.tags.e, [2]);
@@ -123,17 +95,13 @@ describe('conjunctive search', function() {
       }
     }
 
-    var result = facets.search(input, {
-      test: true
-    });
+    var result = await facets.search_native(INDEX_PATH, input);
 
     assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
     assert.deepEqual(result.data.tags.e, [2]);
-
-    done();
   })
 
-  xit('returns facets for not existed filters (does not exist in index)', function test(done) {
+  it('returns facets for not existed filters (does not exist in index)', async function test() {
 
     var input = {
       filters: {
@@ -141,17 +109,13 @@ describe('conjunctive search', function() {
       }
     }
 
-    var result = facets.search(input, {
-      test: true
-    });
+    var result = await facets.search_native(INDEX_PATH, input);
 
     assert.deepEqual(result.data.tags.a, []);
     assert.deepEqual(result.data.tags.e, []);
-
-    done();
   })
 
-  it('returns facets for cross filters', function test(done) {
+  it('returns facets for cross filters', async function test() {
 
     var input = {
       filters: {
@@ -160,16 +124,12 @@ describe('conjunctive search', function() {
       }
     }
 
-    var result = facets.search(input, {
-      test: true
-    });
+    var result = await facets.search_native(INDEX_PATH, input);
 
     assert.deepEqual(result.data.tags.a, [1, 2]);
     assert.deepEqual(result.data.tags.e, [2]);
     assert.deepEqual(result.data.actors.john, [1, 2]);
     assert.deepEqual(result.data.actors.jean, []);
-
-    done();
   })
 })
 
@@ -192,27 +152,20 @@ describe('disjunctive search', function() {
 
 
   before(async function() {
-    storage.dropDB();
+    storage.dropDB(INDEX_PATH);
     facets = new Facets();
-    await facets.index({
+    await facets.index(INDEX_PATH, {
       json_object: items,
       append: false,
       configuration: configuration
     });
   });
 
-
-
-
-  it('checks configuration', function test(done) {
-    assert.deepEqual(facets.configuration(), configuration);
-    done();
+  it('checks configuration', async function test() {
+    assert.deepEqual(facets.configuration(INDEX_PATH), configuration);
   })
 
-  it('calculates combination 2', function test(done) {
-
-
-    var result = facets.load_indexes(input);
+  it('returns facets', async function test() {
 
     var input = {
       filters: {
@@ -220,84 +173,15 @@ describe('disjunctive search', function() {
       }
     }
 
-    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
-
-    assert.deepEqual(union.tags, null);
-    assert.deepEqual(union.actors.toArray(), [1, 3, 4]);
-    assert.deepEqual(union.category.toArray(), [1, 3, 4]);
-
-
-    var input = {
-      filters: {
-        tags: ['z']
-      }
-    }
-
-    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
-    assert.deepEqual(union.tags, null);
-    assert.deepEqual(union.actors.toArray(), [4]);
-    assert.deepEqual(union.category.toArray(), [4]);
-
-
-    var input = {
-      filters: {
-        tags: ['a']
-      }
-    }
-
-    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
-    assert.deepEqual(union.tags, null);
-    assert.deepEqual(union.actors.toArray(), [1, 2, 3, 4]);
-
-    var input = {
-      filters: {
-        tags: ['z', 'f']
-      }
-    }
-
-    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
-    assert.deepEqual(union.tags, null);
-    assert.deepEqual(union.actors.toArray(), [2, 4]);
-    assert.deepEqual(union.category.toArray(), [2, 4]);
-
-
-    var input = {
-      filters: {
-        tags: ['z'],
-        actors: ['jean']
-      }
-    }
-
-    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
-    assert.deepEqual(union.tags.toArray(), [4]);
-    assert.deepEqual(union.actors.toArray(), [4]);
-    assert.deepEqual(union.category.toArray(), [4]);
-
-
-    done();
-  })
-
-  it('returns facets', function test(done) {
-
-    var input = {
-      filters: {
-        tags: ['c']
-      }
-    }
-
-    var result = facets.search(input, {
-      test: true
-    });
+    var result = await facets.search_native(INDEX_PATH, input);
 
     assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
     assert.deepEqual(result.data.tags.c, [1, 3, 4]);
     assert.deepEqual(result.data.tags.e, [2]);
     assert.deepEqual(result.data.actors.john, [1]);
-
-    done();
   })
 
-  it('returns facets for two filters', function test(done) {
+  it('returns facets for two filters', async function test() {
 
     var input = {
       filters: {
@@ -305,9 +189,7 @@ describe('disjunctive search', function() {
       }
     }
 
-    var result = facets.search(input, {
-      test: true
-    });
+    var result = await facets.search_native(INDEX_PATH, input);
 
     assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
     assert.deepEqual(result.data.tags.c, [1, 3, 4]);
@@ -320,10 +202,7 @@ describe('disjunctive search', function() {
 
     assert.deepEqual(result.data.category.comedy, [2]);
     assert.deepEqual(result.data.category.drama, [4]);
-
-    done();
   })
-
 })
 
 describe('disjunctive and conjunctive search', function() {
@@ -343,9 +222,9 @@ describe('disjunctive and conjunctive search', function() {
   }
 
   before(async function() {
-    storage.dropDB();
+    storage.dropDB(INDEX_PATH);
     facets = new Facets();
-    await facets.index({
+    await facets.index(INDEX_PATH, {
       json_object: items,
       append: false,
       configuration: configuration
@@ -353,129 +232,11 @@ describe('disjunctive and conjunctive search', function() {
   });
 
 
-  it('checks configuration', function test(done) {
-    assert.deepEqual(facets.configuration(), configuration);
-    done();
+  it('checks configuration', async function test() {
+    assert.deepEqual(facets.configuration(INDEX_PATH), configuration);
   })
 
-
-  it('calculates combination 2', function test(done) {
-
-    var result = facets.load_indexes(input);
-
-    var input = {
-      filters: {
-        category: ['comedy']
-      }
-    }
-
-    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
-
-    assert.deepEqual(union.tags.toArray(), [2, 3]);
-    assert.deepEqual(union.actors.toArray(), [2, 3]);
-    assert.deepEqual(union.category, null);
-
-    var input = {
-      filters: {
-        category: ['comedy', 'drama']
-      }
-    }
-
-    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
-
-    assert.deepEqual(union.tags.toArray(), [1, 2, 3, 4]);
-    assert.deepEqual(union.actors.toArray(), [1, 2, 3, 4]);
-    assert.deepEqual(union.category, null);
-
-    var input = {
-      filters: {
-        category: ['comedy'],
-        actors: ['john']
-      }
-    }
-
-    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
-
-    assert.deepEqual(union.tags.toArray(), [2]);
-    assert.deepEqual(union.actors.toArray(), [2]);
-    assert.deepEqual(union.category.toArray(), [1, 2]);
-
-
-    var input = {
-      filters: {
-        category: ['comedy', 'drama'],
-        actors: ['john']
-      }
-    }
-
-    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
-
-    assert.deepEqual(union.tags.toArray(), [1, 2]);
-    assert.deepEqual(union.actors.toArray(), [1, 2]);
-    assert.deepEqual(union.category.toArray(), [1, 2]);
-
-    var input = {
-      filters: {
-        category: ['comedy', 'drama']
-      }
-    }
-
-    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
-
-    assert.deepEqual(union.tags.toArray(), [1, 2, 3, 4]);
-    assert.deepEqual(union.actors.toArray(), [1, 2, 3, 4]);
-    assert.deepEqual(union.category, null);
-
-
-    var input = {
-      filters: {
-        category: ['comedy', 'drama'],
-        actors: ['john'],
-        tags: ['b']
-      }
-    }
-
-    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
-
-    assert.deepEqual(union.tags.toArray(), [1]);
-    assert.deepEqual(union.actors.toArray(), [1]);
-    assert.deepEqual(union.category.toArray(), [1]);
-
-    var input = {
-      filters: {
-        category: ['drama'],
-        tags: ['c']
-      }
-    }
-
-    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
-
-    assert.deepEqual(union.tags.toArray(), [1, 4]);
-    assert.deepEqual(union.actors.toArray(), [1, 4]);
-    assert.deepEqual(union.category.toArray(), [1, 3, 4]);
-
-    // reverse order of input
-    var input = {
-      filters: {
-        tags: ['c'],
-        category: ['drama'],
-      }
-    }
-
-    var union = helpers2.combination(result.bits_data_temp, input, configuration.aggregations);
-
-    assert.deepEqual(union.tags.toArray(), [1, 4]);
-    assert.deepEqual(union.actors.toArray(), [1, 4]);
-    assert.deepEqual(union.category.toArray(), [1, 3, 4]);
-
-
-
-    done();
-  })
-
-
-
-  it('returns facets', function test(done) {
+  it('returns facets', async function test() {
 
     var input = {
       filters: {
@@ -483,20 +244,15 @@ describe('disjunctive and conjunctive search', function() {
       }
     }
 
-    var result = facets.search(input, {
-      test: true
-    });
-
+    var result = await facets.search_native(INDEX_PATH, input);
 
     assert.deepEqual(result.data.tags.a, [1, 3, 4]);
     assert.deepEqual(result.data.tags.e, []);
     assert.deepEqual(result.data.actors.john, [1]);
     assert.deepEqual(result.data.category.comedy, [3]);
-
-    done();
   })
 
-  it('returns facets for cross filters', function test(done) {
+  it('returns facets for cross filters', async function test() {
 
     var input = {
       filters: {
@@ -505,9 +261,7 @@ describe('disjunctive and conjunctive search', function() {
       }
     }
 
-    var result = facets.search(input, {
-      test: true
-    });
+    var result = await facets.search_native(INDEX_PATH, input);
 
     assert.deepEqual(result.data.tags.a, [1, 4]);
     assert.deepEqual(result.data.tags.c, [1, 4]);
@@ -516,12 +270,6 @@ describe('disjunctive and conjunctive search', function() {
     assert.deepEqual(result.data.actors.alex, [1]);
     assert.deepEqual(result.data.category.comedy, [3]);
     assert.deepEqual(result.data.category.drama, [1, 4]);
-
-    var ids = helpers2.facets_ids(result['bits_data_temp'], input.filters, configuration.aggregations);
-    assert.deepEqual(ids.toArray(), [1, 4]);
-
-    done();
-
   })
 })
 
@@ -543,21 +291,20 @@ describe('generates facets crossed with query', function() {
 
 
   before(async function() {
-    storage.dropDB();
+    storage.dropDB(INDEX_PATH);
     facets = new Facets();
-    await facets.index({
+    await facets.index(INDEX_PATH, {
       json_object: items,
       append: false,
       configuration: configuration
     });
   });
 
-  it('checks configuration', function test(done) {
-    assert.deepEqual(facets.configuration(), configuration);
-    done();
+  it('checks configuration', async function test() {
+    assert.deepEqual(facets.configuration(INDEX_PATH), configuration);
   })
 
-  it('returns facets for searched ids', function test(done) {
+  it('returns facets for searched ids', async function test() {
 
     var input = {
       filters: {
@@ -565,23 +312,20 @@ describe('generates facets crossed with query', function() {
       }
     }
 
-    var result = facets.search(input, {
-      test: true
-    });
+    var result = await facets.search_native(INDEX_PATH, input);
 
     assert.deepEqual(result.data.tags.a, [1, 3, 4]);
     assert.deepEqual(result.data.tags.e, []);
     assert.deepEqual(result.data.actors.john, [1]);
     assert.deepEqual(result.data.category.comedy, [3]);
 
-
     var input = {
       filters: {
         tags: ['c']
       }
     }
 
-    var result = facets.search(input, {
+    var result = await facets.search_native(INDEX_PATH, input, {
       query_ids: new RoaringBitmap32([1]),
       test: true
     });
@@ -590,11 +334,9 @@ describe('generates facets crossed with query', function() {
     assert.deepEqual(result.data.tags.e, []);
     assert.deepEqual(result.data.actors.john, [1]);
     assert.deepEqual(result.data.category.comedy, []);
-
-    done();
   });
 
-  it('returns facets for searched ids', function test(done) {
+  it('returns facets for searched ids', async function test() {
 
     var input = {
       query: 'john'
@@ -603,8 +345,6 @@ describe('generates facets crossed with query', function() {
     //var result = itemsjs.search(input);
     //assert.deepEqual(result.data.aggregations.tags.buckets[0].key, 'a');
     //assert.deepEqual(result.data.aggregations.tags.buckets[0].doc_count, 2);
-
-    done();
   })
 })
 
@@ -628,16 +368,16 @@ describe('negative filters', function() {
   }
 
   before(async function() {
-    storage.dropDB();
+    storage.dropDB(INDEX_PATH);
     facets = new Facets();
-    await facets.index({
+    await facets.index(INDEX_PATH, {
       json_object: items,
       append: false,
       configuration: configuration
     });
   });
 
-  it('excludes filter from search', function test(done) {
+  it('excludes filter from search', async function test() {
 
     var input = {
       not_filters: {
@@ -645,9 +385,7 @@ describe('negative filters', function() {
       }
     }
 
-    var result = facets.search(input, {
-      test: true
-    });
+    var result = await facets.search_native(INDEX_PATH, input);
 
     assert.deepEqual(result.data.tags.a, [2]);
     assert.deepEqual(result.data.tags.c, []);
@@ -655,10 +393,7 @@ describe('negative filters', function() {
     assert.deepEqual(result.data.actors.john, [2]);
 
     assert.deepEqual(result.not_ids.toArray(), [1, 3, 4]);
-
-    done();
   })
-
 })
 
 
@@ -673,16 +408,16 @@ describe('small configuration', function() {
   }
 
   before(async function() {
-    storage.dropDB();
+    storage.dropDB(INDEX_PATH);
     facets = new Facets();
-    await facets.index({
+    await facets.index(INDEX_PATH, {
       json_object: items,
       append: false,
       configuration: configuration
     });
   });
 
-  it('returns facets', function test(done) {
+  it('returns facets', async function test() {
 
     var input = {
       filters: {
@@ -690,13 +425,8 @@ describe('small configuration', function() {
       }
     }
 
-    var result = facets.search(input, {
-      test: true
-    });
-
+    var result = await facets.search_native(INDEX_PATH, input);
     assert.deepEqual(result.data.category.comedy, [2, 3]);
-
-    done();
   })
 })
 
@@ -708,31 +438,27 @@ describe('no configuration', function() {
   }
 
   before(async function() {
-    storage.dropDB();
+    storage.dropDB(INDEX_PATH);
     facets = new Facets();
-    await facets.index({
+    await facets.index(INDEX_PATH, {
       json_object: items,
       append: false,
       configuration: configuration
     });
   });
 
-  it('returns facets', function test(done) {
+  it('returns facets', async function test() {
 
     var input = {
       filters: {
       }
     }
 
-    var result = facets.search(input, {
-      test: true
-    });
+    var result = await facets.search_native(INDEX_PATH, input);
 
     assert.deepEqual(result.data, {});
+    assert.deepEqual(result.counters, {});
     assert.deepEqual(result.ids, null);
     assert.deepEqual(result.not_ids, null);
-
-    done();
   })
-
 })

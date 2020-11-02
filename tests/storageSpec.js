@@ -2,16 +2,17 @@
 
 const assert = require('assert');
 const storage = require('./../src/storage');
+const INDEX_PATH = './data/db.mdb';
 
 describe('storage', function() {
 
   before(function() {
-    storage.deleteConfiguration();
+    storage.deleteConfiguration(INDEX_PATH);
   });
 
   it('cannot find configuration', function test(done) {
 
-    assert.deepEqual(storage.getConfiguration(), null);
+    assert.deepEqual(storage.getConfiguration(INDEX_PATH), null);
     done();
   })
 
@@ -35,8 +36,8 @@ describe('storage', function() {
     }
 
 
-    storage.setConfiguration(configuration);
-    assert.deepEqual(configuration, storage.getConfiguration());
+    storage.setConfiguration(INDEX_PATH, configuration);
+    assert.deepEqual(configuration, storage.getConfiguration(INDEX_PATH));
 
     done();
   })
@@ -61,8 +62,8 @@ describe('storage', function() {
     }
 
 
-    storage.setConfiguration(configuration);
-    assert.deepEqual(configuration, storage.getConfiguration());
+    storage.setConfiguration(INDEX_PATH, configuration);
+    assert.deepEqual(configuration, storage.getConfiguration(INDEX_PATH));
 
     done();
   })
@@ -86,8 +87,8 @@ describe('storage', function() {
       }
     }
 
-    storage.setConfiguration(configuration);
-    assert.deepEqual(configuration, storage.getConfiguration());
+    storage.setConfiguration(INDEX_PATH, configuration);
+    assert.deepEqual(configuration, storage.getConfiguration(INDEX_PATH));
 
     done();
   })

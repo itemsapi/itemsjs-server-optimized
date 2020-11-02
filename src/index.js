@@ -18,47 +18,71 @@ module.exports = function itemsjs() {
 
     /**
      */
-    index: async function(data) {
-      await facets.index(data);
+    index: async function(index_name, data) {
+
+      var index_path = `./data/${index_name}.mdb`
+      await facets.index(index_path, data);
     },
 
-    load_sort_index: function() {
-      facets.load_sort_index();
+    /**
+     */
+    list_indexes: async function() {
+      return facets.list_indexes();
+    },
+
+    load_sort_index: function(index_name) {
+
+      var index_path = `./data/${index_name}.mdb`
+      facets.load_sort_index(index_path);
     },
 
     tokenize: function(query) {
       return facets.query_parser2(query);
     },
 
-    get_item: function(id) {
-      return storage.getItemByPkey(id);
+    get_item: function(index_name, id) {
+
+      var index_path = `./data/${index_name}.mdb`
+      return storage.getItemByPkey(index_path, id);
     },
 
-    update_item: function(data) {
-      facets.update_item(data);
+    update_item: function(index_name, data) {
+
+      var index_path = `./data/${index_name}.mdb`
+      facets.update_item(index_path, data);
     },
 
-    delete_item: function(id) {
-      storage.deleteItem(id);
+    delete_item: function(index_name, id) {
+
+      var index_path = `./data/${index_name}.mdb`
+      storage.deleteItem(index_path, id);
     },
 
-    partial_update_item: function(id, data) {
-      facets.partial_update_item(id, data);
+    partial_update_item: function(index_name, id, data) {
+
+      var index_path = `./data/${index_name}.mdb`
+      facets.partial_update_item(index_path, id, data);
     },
 
     /**
      * put settings
      */
-    set_configuration: function(data) {
-      facets.set_configuration(data);
+    set_configuration: function(index_name, data) {
+
+      var index_path = `./data/${index_name}.mdb`
+      facets.set_configuration(index_path, data);
     },
 
-    get_configuration: function(data) {
-      return facets.configuration();
+    get_configuration: function(index_name) {
+
+      var index_path = `./data/${index_name}.mdb`
+      return facets.configuration(index_path);
     },
 
-    reset: function(data) {
-      storage.dropDB();
+    reset: function(index_name, data) {
+
+      var index_path = `./data/${index_name}.mdb`
+      storage.dropDB(index_path);
     },
 
     /**
@@ -68,10 +92,18 @@ module.exports = function itemsjs() {
      * sort
      * filters
      */
-    search: function(input) {
+    search: async function(index_name, input, options) {
       input = input || {};
+      options = options || {};
 
-      configuration = storage.getConfiguration();
+      // @TODO
+      //if (0) {
+        //throw new Error('invalid index name');
+      //}
+
+      var index_path = `./data/${index_name}.mdb`
+
+      configuration = storage.getConfiguration(index_path);
 
       if (!configuration) {
         throw new Error('index first then search');
@@ -82,17 +114,19 @@ module.exports = function itemsjs() {
        */
       input.aggregations = helpers.mergeAggregations(configuration.aggregations, input);
 
-      return lib.search(input, configuration, facets);
+      return await lib.search(index_path, input, configuration, facets, options);
     },
 
-    aggregation: function aggregation(input) {
+    aggregation: async function aggregation(index_name, input) {
 
-      configuration = storage.getConfiguration();
+      var index_path = `./data/${index_name}.mdb`
+
+      configuration = storage.getConfiguration(index_path);
 
       if (!configuration) {
         throw new Error('index first then search');
       }
-      return lib.aggregation(input, configuration, facets);
+      return await lib.aggregation(index_path, input, configuration, facets);
     },
   }
 }

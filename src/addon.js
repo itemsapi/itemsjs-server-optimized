@@ -5,7 +5,7 @@ module.exports = addon;
 module.exports.indexAsync = function(data) {
   return new Promise(function (resolve, reject) {
 
-    addon.indexCb(data, function(err, res) {
+    addon.index_cb(data, function(err, res) {
 
       if (err) {
         return reject(err);
@@ -19,7 +19,21 @@ module.exports.indexAsync = function(data) {
 module.exports.concurrencyAsync = function(data) {
   return new Promise(function (resolve, reject) {
 
-    addon.concurrencyCb(data, function(err, res) {
+    addon.concurrency_cb(data, function(err, res) {
+
+      if (err) {
+        return reject(err);
+      }
+
+      return resolve(res);
+    })
+  });
+}
+
+module.exports.search_facets_async = function(data) {
+  return new Promise(function (resolve, reject) {
+
+    addon.search_facets_cb(data, function(err, res) {
 
       if (err) {
         return reject(err);

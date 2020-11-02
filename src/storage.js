@@ -7,28 +7,38 @@ const RoaringBitmap32 = require('roaring/RoaringBitmap32');
 const addon = require('bindings')('itemsjs_addon.node');
 const _ = require('lodash');
 const fs = require('fs');
-const dir = './db.mdb';
 
-if (!fs.existsSync(dir)){
-  fs.mkdirSync(dir);
+const MAP_SIZE = 100 * 1024 * 1024 * 1024;
+const MAX_DBS = 30;
+
+var openDB = function(index_path) {
+
+  if (!fs.existsSync(index_path)) {
+    fs.mkdirSync(index_path);
+  }
+
+  const env = new lmdb.Env();
+
+  env.open({
+    path: index_path,
+  });
+
+  var dbi = env.openDbi({
+    name: null,
+    create: false
+  })
+
+  return {
+    dbi, env
+  };
 }
 
-const env = new lmdb.Env();
-env.open({
-  path: './db.mdb',
-  mapSize: 100 * 1024 * 1024 * 1024,
-  maxReaders: 10,
-  noTls: true,
-  unsafeNoLock: true,
-  maxDbs: 30
-});
+module.exports.dropDB = function(index_path) {
 
-var dbi = env.openDbi({
-  name: null,
-  create: false
-})
+  var open = openDB(index_path);
+  var dbi = open.dbi;
+  var env = open.env;
 
-module.exports.dropDB = function() {
   dbi.drop();
   dbi = env.openDbi({
     name: null,
@@ -43,19 +53,30 @@ module.exports.dropDB = function() {
     });
     dbi2.drop();
   })
+
+  dbi.close();
+  env.close();
 }
 
+module.exports.index = function(data) {
 
-module.exports.deleteItem = function(id) {
+  if (!fs.existsSync(data.index_path)) {
+    fs.mkdirSync(data.index_path);
+  }
 
-  var internal_id = module.exports.getInternalId(id);
+  addon.index(data);
+}
+
+module.exports.deleteItem = function(index_path, id) {
+
+  var internal_id = module.exports.getInternalId(index_path, id);
 
   if (internal_id) {
-    addon.delete_item(internal_id);
+    addon.delete_item(index_path, internal_id);
   }
 }
 
-module.exports.updateItem = function(item, options) {
+module.exports.updateItem = function(index_path, item, options) {
 
   options = options || {};
 
@@ -63,43 +84,49 @@ module.exports.updateItem = function(item, options) {
     throw new Error('integer id is required');
   }
 
-  var internal_id = module.exports.getInternalId(item.id);
+  var internal_id = module.exports.getInternalId(index_path, item.id);
 
   if (!internal_id) {
     throw new Error(`Not found item by primary key "${id}"`);
   }
 
-  addon.delete_item(internal_id);
+  addon.delete_item(index_path, internal_id);
   addon.index({
     json_object: [item],
+    index_path: index_path,
     faceted_fields: options.faceted_fields,
     sorting_fields: options.sorting_fields,
     append: true
   });
 }
 
-module.exports.partialUpdateItem = function(id, item, options) {
+module.exports.partialUpdateItem = function(index_path, id, item, options) {
 
   options = options || {};
 
-  var internal_id = module.exports.getInternalId(id);
+  var internal_id = module.exports.getInternalId(index_path, id);
 
-  var old_item = module.exports.getItemByPkey(id);
+  var old_item = module.exports.getItemByPkey(index_path, id);
 
   if (!internal_id) {
     throw new Error(`Not found item by primary key "${id}"`);
   }
 
-  addon.delete_item(internal_id);
+  addon.delete_item(index_path, internal_id);
   addon.index({
     json_object: [_.assign(old_item, item)],
+    index_path: index_path,
     faceted_fields: options.faceted_fields,
     sorting_fields: options.sorting_fields,
     append: true
   });
 }
 
-module.exports.deleteConfiguration = function(configuration) {
+module.exports.deleteConfiguration = function(index_path, configuration) {
+
+  var open = openDB(index_path);
+  var dbi = open.dbi;
+  var env = open.env;
 
   var txn = env.beginTxn();
   try {
@@ -107,22 +134,38 @@ module.exports.deleteConfiguration = function(configuration) {
   } catch (err) {
   }
   txn.commit();
+
+  dbi.close();
+  env.close();
 }
 
-module.exports.setConfiguration = function(configuration) {
+module.exports.setConfiguration = function(index_path, configuration) {
+
+  var open = openDB(index_path);
+  var dbi = open.dbi;
+  var env = open.env;
 
   var txn = env.beginTxn();
   var binary = txn.putBinary(dbi, new Buffer.from('configuration'), new Buffer.from(JSON.stringify(configuration)));
   txn.commit();
+
+  dbi.close();
+  env.close();
 }
 
-module.exports.getConfiguration = function() {
+module.exports.getConfiguration = function(index_path) {
+
+  var open = openDB(index_path);
+  var dbi = open.dbi;
+  var env = open.env;
 
   var txn = env.beginTxn({
     readonly: true
   });
   var binary = txn.getBinary(dbi, new Buffer.from('configuration'));
   txn.abort();
+  dbi.close();
+  env.close();
 
   if (!binary) {
     return null;
@@ -134,7 +177,11 @@ module.exports.getConfiguration = function() {
 }
 
 
-module.exports.getInternalId = function(id) {
+module.exports.getInternalId = function(index_path, id) {
+
+  var open = openDB(index_path);
+  var dbi = open.dbi;
+  var env = open.env;
 
   var dbi_pkeys = env.openDbi({
     name: 'pkeys',
@@ -149,6 +196,9 @@ module.exports.getInternalId = function(id) {
   txn.abort();
   dbi_pkeys.close();
 
+  dbi.close();
+  env.close();
+
 
   if (binary) {
     var string = binary.toString();
@@ -159,7 +209,11 @@ module.exports.getInternalId = function(id) {
   }
 }
 
-module.exports.getSortingValue = function(field, internal_id) {
+module.exports.getSortingValue = function(index_path, field, internal_id) {
+
+  var open = openDB(index_path);
+  var dbi = open.dbi;
+  var env = open.env;
 
   var dbi_sorting = env.openDbi({
     name: 'sorting_' + field,
@@ -174,6 +228,8 @@ module.exports.getSortingValue = function(field, internal_id) {
   txn.abort();
   dbi_sorting.close();
 
+  dbi.close();
+  env.close();
 
   if (binary) {
     var string = binary.toString();
@@ -182,7 +238,11 @@ module.exports.getSortingValue = function(field, internal_id) {
   }
 }
 
-module.exports.getKeysList = function() {
+module.exports.getKeysList = function(index_path) {
+
+  var open = openDB(index_path);
+  var dbi = open.dbi;
+  var env = open.env;
 
   var array = [];
 
@@ -208,12 +268,17 @@ module.exports.getKeysList = function() {
   cursor.close();
   txn.abort();
   dbi2.close();
+  dbi.close();
+  env.close();
 
   return array;
 }
 
-module.exports.getSearchTermIndex = function(key) {
+module.exports.getSearchTermIndex = function(index_path, key) {
 
+  var open = openDB(index_path);
+  var dbi = open.dbi;
+  var env = open.env;
 
   var dbi_terms = env.openDbi({
     name: 'terms',
@@ -227,6 +292,8 @@ module.exports.getSearchTermIndex = function(key) {
   var binary = txn.getBinary(dbi_terms, new Buffer.from('' + key));
   txn.abort();
   dbi_terms.close();
+  dbi.close();
+  env.close();
 
   if (!binary) {
     return;
@@ -239,7 +306,11 @@ module.exports.getSearchTermIndex = function(key) {
 
 
 
-module.exports.getFilterIndex = function(key) {
+module.exports.getFilterIndex = function(index_path, key) {
+
+  var open = openDB(index_path);
+  var dbi = open.dbi;
+  var env = open.env;
 
   var dbi_filters = env.openDbi({
     name: 'filters',
@@ -253,6 +324,8 @@ module.exports.getFilterIndex = function(key) {
   var binary = txn.getBinary(dbi_filters, new Buffer.from(key));
   txn.abort();
   dbi_filters.close();
+  dbi.close();
+  env.close();
 
   if (!binary) {
     return;
@@ -267,10 +340,14 @@ module.exports.getFilterIndex = function(key) {
 /**
  * the roaring deserialization is taking the most time while making faceted query
  */
-module.exports.getFilterIndexes = function() {
+module.exports.getFilterIndexes = function(index_path) {
+
+  var open = openDB(index_path);
+  var dbi = open.dbi;
+  var env = open.env;
 
   var output = {};
-  var keys = module.exports.getKeysList();
+  var keys = module.exports.getKeysList(index_path);
 
   var dbi_filters = env.openDbi({
     name: 'filters',
@@ -296,15 +373,22 @@ module.exports.getFilterIndexes = function() {
 
   txn.abort();
   dbi_filters.close();
+  dbi.close();
+  env.close();
+
   return output;
 }
 
-module.exports.getItemByPkey = function(id) {
-  var internal_id = module.exports.getInternalId(id);
-  return module.exports.getItem(internal_id);
+module.exports.getItemByPkey = function(index_path, id) {
+  var internal_id = module.exports.getInternalId(index_path, id);
+  return module.exports.getItem(index_path, internal_id);
 }
 
-module.exports.getItem = function(id) {
+module.exports.getItem = function(index_path, id) {
+
+  var open = openDB(index_path);
+  var dbi = open.dbi;
+  var env = open.env;
 
   var dbi_items = env.openDbi({
     name: 'items',
@@ -318,7 +402,8 @@ module.exports.getItem = function(id) {
   var binary = txn.getBinary(dbi_items, new Buffer.from(id + ''));
   txn.abort();
   dbi_items.close();
-
+  dbi.close();
+  env.close();
 
   if (!binary) {
     return;
@@ -329,7 +414,11 @@ module.exports.getItem = function(id) {
   return json;
 }
 
-module.exports.getItems = function(ids) {
+module.exports.getItems = function(index_path, ids) {
+
+  var open = openDB(index_path);
+  var dbi = open.dbi;
+  var env = open.env;
 
   var dbi_items = env.openDbi({
     name: 'items',
@@ -355,6 +444,9 @@ module.exports.getItems = function(ids) {
 
   txn.abort();
   dbi_items.close();
+  dbi.close();
+  env.close();
+
 
   return output;
 }
@@ -363,16 +455,19 @@ module.exports.getItems = function(ids) {
 /**
  * get internal ids
  */
-module.exports.getIds = function() {
+module.exports.getIds = function(index_path) {
 
-  return module.exports.getIdsBitmap().toArray();
+  return module.exports.getIdsBitmap(index_path).toArray();
 }
-
 
 /**
  * get internal ids
  */
-module.exports.getIdsBitmap = function() {
+module.exports.getIdsBitmap = function(index_path) {
+
+  var open = openDB(index_path);
+  var dbi = open.dbi;
+  var env = open.env;
 
   var txn = env.beginTxn({
     readonly: true
@@ -387,6 +482,8 @@ module.exports.getIdsBitmap = function() {
 
   var bitmap = RoaringBitmap32.deserialize(binary, true);
 
+  dbi.close();
+  env.close();
 
   return bitmap;
 }

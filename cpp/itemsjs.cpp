@@ -32,7 +32,7 @@ unsigned int WRITER_FLAGS = MDB_NOSYNC | MDB_WRITEMAP | MDB_MAPASYNC | MDB_NOMET
 // mutex is used so MDB_NOTLS not needed
 unsigned int READER_FLAGS = MDB_NOLOCK | MDB_NOTLS;
 //unsigned int READER_FLAGS = 0;
-
+const auto DB_SIZE = 100UL * 1024UL * 1024UL * 1024UL;
 
 std::mutex super_mutex;
 
@@ -60,7 +60,7 @@ std::string itemsjs::json_at(string json_path, int i) {
 /**
  * native version of faceted search
  */
-std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs::search_facets(nlohmann::json input, nlohmann::json filters_array, nlohmann::json config, nlohmann::json facets_fields, std::optional<Roaring> query_ids) {
+std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs::search_facets(const char *&index_path, nlohmann::json input, nlohmann::json filters_array, nlohmann::json config, nlohmann::json facets_fields, std::optional<Roaring> query_ids) {
 
   // @TODO make unordered
   std::map<string, std::map<string, Roaring>> filters_indexes;
@@ -68,11 +68,14 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
   std::map<string, Roaring> combination;
   std::set<string> filters_fields_set = facets_fields;
   nlohmann::json output;
+  output = nlohmann::json::object();
 
   auto env = lmdb::env::create();
-  env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL);
+  env.set_mapsize(DB_SIZE);
   env.set_max_dbs(20);
-  env.open("./db.mdb", READER_FLAGS, 0664);
+  //env.open("./data/db_1.mdb", 0, 0664);
+  env.open(index_path, 0, 0664);
+  //env.open(index_path, READER_FLAGS, 0664);
 
   auto rtxn = lmdb::txn::begin(env, nullptr, MDB_RDONLY);
   auto dbi = lmdb::dbi::open(rtxn, "filters");
@@ -235,7 +238,22 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
     }
 
 
-    output[sv][sv2] = ids.cardinality();
+    output["counters"][sv][sv2] = ids.cardinality();
+
+    //nlohmann::json lista;
+    //auto ans = new uint32_t[ids.cardinality()];
+    //ids.toUint32Array(ans);
+
+
+    if (true) {
+
+      output["data"][sv][sv2] = nlohmann::json::array();;
+      for (auto bit_id: ids) {
+
+        output["data"][sv][sv2].push_back(bit_id);
+      }
+    }
+
     ++i;
   }
 
@@ -353,15 +371,15 @@ std::tuple<std::set<string>, std::set<string>> tokenize_item(simdjson::dom::obje
   return {filters, terms};
 }
 
-void itemsjs::delete_item(int id) {
+void itemsjs::delete_item(const char *&index_path, int id) {
 
   const std::lock_guard<std::mutex> lock(super_mutex);
 
   auto env = lmdb::env::create();
-  env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
-  env.set_max_dbs(20);
 
-  env.open("./db.mdb", WRITER_FLAGS, 0664);
+  env.set_mapsize(DB_SIZE);
+  env.set_max_dbs(20);
+  env.open(index_path, 0, 0664);
   //env.set_flags();
 
   auto wtxn = lmdb::txn::begin(env);
@@ -454,18 +472,17 @@ map<string, map<string, double>> sorting;
 typedef boost::bimap<int, boost::bimaps::multiset_of<double>> results_bimap;
 typedef results_bimap::value_type position;
 
-map<string, results_bimap> sorting2;
+map<string, map<string, results_bimap>> sorting3;
 
 
+void itemsjs::load_sort_index(const char *&index_path, std::vector<std::string> &sorting_fields) {
 
-void itemsjs::load_sort_index(std::vector<std::string> &sorting_fields) {
-
-  sorting2.clear();
+  sorting3[index_path].clear();
 
   auto env = lmdb::env::create();
-  env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL);
+  env.set_mapsize(DB_SIZE);
   env.set_max_dbs(20);
-  env.open("./db.mdb", 0, 0664);
+  env.open(index_path, 0, 0664);
 
   auto rtxn = lmdb::txn::begin(env, nullptr, MDB_RDONLY);
 
@@ -491,8 +508,7 @@ void itemsjs::load_sort_index(std::vector<std::string> &sorting_fields) {
         int id = std::stoi ((string)(key));
 
         // only add
-        sorting2[field].insert(position(id, (double) val));
-        //sorting2[field].left[id] = val;
+        sorting3[index_path][field].insert(position(id, (double) val));
       }
     }
     catch (lmdb::not_found_error) {
@@ -504,7 +520,7 @@ void itemsjs::load_sort_index(std::vector<std::string> &sorting_fields) {
 }
 
 
-std::vector<int> itemsjs::sort_index(const Roaring &ids, std::string field, std::string order, int offset, int limit) {
+std::vector<int> itemsjs::sort_index(const char *&index_path, const Roaring &ids, std::string field, std::string order, int offset, int limit) {
 
   std::vector<int> sorted_ids;
   std::set<int> found_ids;
@@ -563,49 +579,15 @@ std::vector<int> itemsjs::sort_index(const Roaring &ids, std::string field, std:
   };
 
   if (order == "asc") {
-    loop(sorting2[field].right.begin(), sorting2[field].right.end());
+    loop(sorting3[index_path][field].right.begin(), sorting3[index_path][field].right.end());
   } else if (order == "desc") {
-    loop(sorting2[field].right.rbegin(), sorting2[field].right.rend());
+    loop(sorting3[index_path][field].right.rbegin(), sorting3[index_path][field].right.rend());
   }
 
   return sorted_ids;
 }
 
-/**
- * it is used for making concurrency test with threading
- * one open lmdb writer globally is possible
- */
-std::string concurrency_test() {
-
-  // thanks to that we are sure there is only one lmdb writer
-  const std::lock_guard<std::mutex> lock(super_mutex);
-
-  auto env = lmdb::env::create();
-  env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL);
-  env.set_max_dbs(1000);
-  env.open("./db.mdb", WRITER_FLAGS, 0664);
-
-  auto wtxn = lmdb::txn::begin(env);
-  auto dbi = lmdb::dbi::open(wtxn, "concurrency_test", MDB_CREATE);
-
-  Roaring ids;
-
-  for (int i = 1 ; i < 10000 ; ++i ) {
-    ids.add(i);
-  }
-
-  db_put_roaring(dbi, wtxn, "ids", ids);
-
-  cout << "put data" << endl;
-  wtxn.commit();
-
-  env.close();
-
-  return "result cncn";
-}
-
-
-std::string itemsjs::index(const string& json_path, const string& json_string, const vector<string> faceted_fields, const std::vector<std::string> sorting_fields, bool append = true) {
+std::string itemsjs::index(const char *&index_path, string json_path, const string& json_string, vector<string> &faceted_fields, std::vector<std::string> &sorting_fields, bool append = true) {
 
   const std::lock_guard<std::mutex> lock(super_mutex);
 
@@ -621,9 +603,9 @@ std::string itemsjs::index(const string& json_path, const string& json_string, c
   int starting_id = 1;
 
   auto env = lmdb::env::create();
-  env.set_mapsize(100UL * 1024UL * 1024UL * 1024UL); /* 10 GiB */
+  env.set_mapsize(DB_SIZE);
   env.set_max_dbs(20);
-  env.open("./db.mdb", WRITER_FLAGS, 0664);
+  env.open(index_path, 0, 0664);
 
   if (append) {
     // local scope
@@ -708,8 +690,8 @@ std::string itemsjs::index(const string& json_path, const string& json_string, c
         sorting_dbs[field].put(wtxn, string_id.c_str(), val.c_str());
 
         // this is insert or update sort index value
-        sorting2[field].left.erase(id);
-        sorting2[field].insert(position(id, value));
+        sorting3[index_path][field].left.erase(id);
+        sorting3[index_path][field].insert(position(id, value));
         // does not work with right map
         //sorting2[field].left[id] = value;
       }
@@ -947,13 +929,23 @@ Napi::Array itemsjs::TokenizeWrapped(const Napi::CallbackInfo& info) {
 
 void itemsjs::DeleteItemWrapped(const Napi::CallbackInfo& info) {
 
-  auto id = info[0].As<Napi::Number>().Uint32Value();
-  itemsjs::delete_item(id);
+  //Napi::Value index_name = info[0].As<Napi::Number>().Uint32Value();
+
+  Napi::String index_name = info[0].As<Napi::String>();
+  string name_a(index_name.ToString());
+  const char *index_path = name_a.c_str();
+
+  auto id = info[1].As<Napi::Number>().Uint32Value();
+  itemsjs::delete_item(index_path, id);
 }
 
 void itemsjs::LoadSortIndexWrapped(const Napi::CallbackInfo& info) {
 
-  Napi::Array first = info[0].As<Napi::Array>();
+  Napi::String index_name = info[0].As<Napi::String>();
+  string name_a(index_name.ToString());
+  const char *index_path = name_a.c_str();
+
+  Napi::Array first = info[1].As<Napi::Array>();
 
   vector<string> sorting_fields_array;
 
@@ -968,7 +960,7 @@ void itemsjs::LoadSortIndexWrapped(const Napi::CallbackInfo& info) {
     }
   }
 
-  itemsjs::load_sort_index(sorting_fields_array);
+  itemsjs::load_sort_index(index_path, sorting_fields_array);
 }
 
 Napi::Object itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {
@@ -976,43 +968,39 @@ Napi::Object itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   Napi::String returnValue;
 
+  Napi::Object first = info[0].As<Napi::Object>();
+
   Napi::Object json = env.Global().Get("JSON").As<Napi::Object>();
   Napi::Function stringify = json.Get("stringify").As<Napi::Function>();
 
-  Napi::Object first = info[0].As<Napi::Object>();
-  string input_string = stringify.Call(json, { first }).As<Napi::String>();
+
+  string input_string = stringify.Call(json, { first.Get("input") }).As<Napi::String>();
   nlohmann::json input = nlohmann::json::parse(input_string);
 
-  Napi::Object second = info[1].As<Napi::Object>();
-  string filters_array_string = stringify.Call(json, { second }).As<Napi::String>();
+  string filters_array_string = stringify.Call(json, { first.Get("filters_array") }).As<Napi::String>();
   nlohmann::json filters_array = nlohmann::json::parse(filters_array_string);
 
-  Napi::Object third = info[2].As<Napi::Object>();
-  string conf_string = stringify.Call(json, { third }).As<Napi::String>();
+  string conf_string = stringify.Call(json, { first.Get("aggregations") }).As<Napi::String>();
   nlohmann::json conf = nlohmann::json::parse(conf_string);
 
-  Napi::Object forth = info[3].As<Napi::Object>();
-  string facets_fields_string = stringify.Call(json, { forth }).As<Napi::String>();
-
+  string facets_fields_string = stringify.Call(json, { first.Get("facets_fields") }).As<Napi::String>();
   nlohmann::json facets_fields = nlohmann::json::parse(facets_fields_string);
 
-  // buffers
-  // https://github.com/nodejs/node-addon-api/blob/master/doc/buffer.md
-  // https://github.com/nodejs/node-addon-api/issues/405
-  Napi::Value fifth = info[4];
-
+  Napi::Value fifth = first.Get("query_ids");
   std::optional<Roaring> query_ids;
 
-  Napi::Object obj = Napi::Object::New(env);
-
   if (!fifth.IsNull()) {
-    Napi::Buffer<char> buffer = info[4].As<Napi::Buffer<char>>();
+    Napi::Buffer<char> buffer = first.Get("query_ids").As<Napi::Buffer<char>>();
     query_ids = Roaring::read(buffer.Data());
   }
 
-  //nlohmann::json result;
-  auto [result, ids, not_ids] = itemsjs::search_facets(input, filters_array, conf, facets_fields, query_ids);
-  obj.Set("facets", result);
+  Napi::Value index_name = first.Get("index_path");
+  string name_a(index_name.ToString());
+  const char *index_path = name_a.c_str();
+
+  Napi::Object obj = Napi::Object::New(env);
+  auto [result, ids, not_ids] = itemsjs::search_facets(index_path, input, filters_array, conf, facets_fields, query_ids);
+  obj.Set("raw", result);
 
   if (ids) {
 
@@ -1044,16 +1032,92 @@ Napi::Object itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {
   return obj;
 }
 
-Napi::String TestWrapped(const Napi::CallbackInfo& info) {
+
+void itemsjs::SearchFacetsWrappedCb(const Napi::CallbackInfo& info) {
+
   Napi::Env env = info.Env();
-  return Napi::String::New(env, "test");
+  Napi::String returnValue;
+
+  Napi::Object first = info[0].As<Napi::Object>();
+
+  auto callback = std::make_shared<ThreadSafeCallback>(info[1].As<Napi::Function>());
+  //bool fail = info.Length() > 2;
+  bool fail = false;
+
+  Napi::Object json = env.Global().Get("JSON").As<Napi::Object>();
+  Napi::Function stringify = json.Get("stringify").As<Napi::Function>();
+
+
+  string input_string = stringify.Call(json, { first.Get("input") }).As<Napi::String>();
+  nlohmann::json input = nlohmann::json::parse(input_string);
+
+  //cout << input << endl;
+
+  string filters_array_string = stringify.Call(json, { first.Get("filters_array") }).As<Napi::String>();
+  nlohmann::json filters_array = nlohmann::json::parse(filters_array_string);
+
+  string conf_string = stringify.Call(json, { first.Get("aggregations") }).As<Napi::String>();
+  nlohmann::json conf = nlohmann::json::parse(conf_string);
+
+  string facets_fields_string = stringify.Call(json, { first.Get("facets_fields") }).As<Napi::String>();
+  nlohmann::json facets_fields = nlohmann::json::parse(facets_fields_string);
+
+  Napi::Value fifth = first.Get("query_ids");
+  std::optional<Roaring> query_ids;
+
+  if (!fifth.IsNull()) {
+    Napi::Buffer<char> buffer = info[4].As<Napi::Buffer<char>>();
+    query_ids = Roaring::read(buffer.Data());
+  }
+
+  Napi::Value index_name = first.Get("index_path");
+  string name_a(index_name.ToString());
+  //const char *index_path = name_a.c_str();
+
+
+  std::thread([callback, fail, name_a, input, filters_array, conf, facets_fields, query_ids] {
+    try {
+      if (fail) {
+        throw std::runtime_error("Failure during async work");
+      }
+
+      const char *index_path = name_a.c_str();
+
+      string result = "aha";
+      auto [result2, ids, not_ids] = itemsjs::search_facets(index_path, input, filters_array, conf, facets_fields, query_ids);
+
+      callback->call([result, result2, ids, not_ids](Napi::Env env, std::vector<napi_value>& args) {
+
+        Napi::Object obj = Napi::Object::New(env);
+
+        obj.Set("raw", result2);
+
+        if (ids) {
+
+          int expectedsize = ids.value().getSizeInBytes();
+          char *serializedbytes = new char [expectedsize];
+          ids.value().write(serializedbytes);
+          std::string_view nowy(serializedbytes, expectedsize);
+
+          Napi::Buffer<char> buffer3 = Napi::Buffer<char>::Copy(env, nowy.data(), nowy.length());
+          delete serializedbytes;
+          obj.Set("ids", buffer3);
+        }
+
+        args = { env.Undefined(), obj };
+      });
+    }
+    catch (std::exception& e) {
+
+      callback->callError(e.what());
+    }
+  }).detach();
 }
 
 Napi::String itemsjs::JsonAtWrapped(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
   Napi::String returnValue;
-
 
   Napi::String json_path = info[0].As<Napi::String>();
   Napi::Number at = info[1].As<Napi::Number>();
@@ -1063,15 +1127,19 @@ Napi::String itemsjs::JsonAtWrapped(const Napi::CallbackInfo& info) {
 Napi::TypedArrayOf<uint32_t> itemsjs::SortIndexWrapped(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
-  Napi::Buffer<char> buffer = info[0].As<Napi::Buffer<char>>();
+  Napi::String index_name = info[0].As<Napi::String>();
+  string name_a(index_name.ToString());
+  const char *index_path = name_a.c_str();
+
+  Napi::Buffer<char> buffer = info[1].As<Napi::Buffer<char>>();
   Roaring ids = Roaring::read(buffer.Data());
 
-  Napi::String field = info[1].As<Napi::String>();
-  Napi::String order = info[2].As<Napi::String>();
-  auto offset = info[3].As<Napi::Number>().Uint32Value();
-  auto limit = info[4].As<Napi::Number>().Uint32Value();
+  Napi::String field = info[2].As<Napi::String>();
+  Napi::String order = info[3].As<Napi::String>();
+  auto offset = info[4].As<Napi::Number>().Uint32Value();
+  auto limit = info[5].As<Napi::Number>().Uint32Value();
 
-  std::vector<int> sorted_ids = sort_index(ids, field, order, offset, limit);
+  std::vector<int> sorted_ids = sort_index(index_path, ids, field, order, offset, limit);
 
   Napi::TypedArrayOf<uint32_t> array2 = Napi::TypedArrayOf<uint32_t>::New(env, sorted_ids.size());
 
@@ -1159,13 +1227,19 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
     }
   }
 
-  return Napi::String::New(env, itemsjs::index(json_path, json_string, faceted_fields_array, sorting_fields_array, append));
+  Napi::Value index_name = first.Get("index_path");
+  string name_a(index_name.ToString());
+  const char *index_path = name_a.c_str();
+  //const char *index_path = "fdsafds";
+
+  return Napi::String::New(env, itemsjs::index(index_path, json_path, json_string, faceted_fields_array, sorting_fields_array, append));
+  //index_path, json_path, json_string, faceted_fields_array, sorting_fields_array, append
   //return returnValue;
 }
 
 // @TODO
 // add mutex
-void IndexWrappedCb(const Napi::CallbackInfo& info) {
+void itemsjs::IndexWrappedCb(const Napi::CallbackInfo& info) {
 
   const std::lock_guard<std::mutex> lock(super_mutex);
   cout << "start index wrapped cb" << endl;
@@ -1176,7 +1250,14 @@ void IndexWrappedCb(const Napi::CallbackInfo& info) {
   auto callback = std::make_shared<ThreadSafeCallback>(info[1].As<Napi::Function>());
   bool fail = info.Length() > 2;
 
+
   Napi::Object first = info[0].As<Napi::Object>();
+
+
+  Napi::Value index_name = first.Get("index_path");
+  string name_a(index_name.ToString());
+  const char *index_path = name_a.c_str();
+
 
   vector<string> faceted_fields_array;
   Napi::Value faceted_fields_value = first.Get("faceted_fields");
@@ -1250,10 +1331,7 @@ void IndexWrappedCb(const Napi::CallbackInfo& info) {
   }
 
   // Pass callback to other thread
-  //std::thread([callback, fail, json_path, json_string, faceted_fields_array, sorting_fields_array, append] {
-  //std::thread([callback, fail, json_path, json_string, faceted_fields_array, sorting_fields_array, append] {
-  std::thread([callback, fail, json_path, json_string, faceted_fields_array, sorting_fields_array, append] {
-  //std::thread([callback, fail, json_path, json_string, faceted_fields_array, sorting_fields_array, append] {
+  std::thread([callback, fail, &index_path, json_path, json_string, &faceted_fields_array, &sorting_fields_array, append] {
   //std::thread([callback, fail, std::ref(json_path), std::ref(json_string), std::ref(faceted_fields_array), std::ref(sorting_fields_array), append] {
     try {
       if (fail) {
@@ -1263,8 +1341,14 @@ void IndexWrappedCb(const Napi::CallbackInfo& info) {
       vector<string> a;
       vector<string> b;
 
+      //const char *index_path = name_a.c_str();
+      //const char *index_path = "aahaa";
+
       //string result = itemsjs::index("", "[{\"a\":5},{\"a\":6}]", a, b, false);
-      string result = itemsjs::index(json_path, json_string, faceted_fields_array, sorting_fields_array, append);
+      string result = itemsjs::index(index_path, json_path, json_string, faceted_fields_array, sorting_fields_array, append);
+      //string result = itemsjs::index(aha.c_str(), json_path, json_string, faceted_fields_array, sorting_fields_array, append);
+      //index3(aha.c_str());
+      //string result = index4(index_path, json_path, json_string, faceted_fields_array, sorting_fields_array, append);
       //string result = "";
 
       // this is non blocking
@@ -1284,28 +1368,6 @@ void IndexWrappedCb(const Napi::CallbackInfo& info) {
   }).detach();
 }
 
-/**
- * it's for testing async with threads purpose
- */
-void ConcurrencyWrappedCb(const Napi::CallbackInfo& info) {
-  auto callback = std::make_shared<ThreadSafeCallback>(info[1].As<Napi::Function>());
-  std::thread([callback] {
-    try {
-
-      //cout << "slept goodslept goodslept goodslept goodslept goodslept goodslept goodslept good" << endl;
-
-      callback->call([](Napi::Env env, std::vector<napi_value>& args) {
-        //concurrency_test();
-        cout << "ccallbackcallbackcallbackcallbackcallbackcallbackcallbackallback" << endl;
-        args = { env.Undefined(), Napi::String::New(env, "result") };
-      });
-    }
-    catch (std::exception& e) {
-      callback->callError(e.what());
-    }
-  }).detach();
-}
-
 Napi::Object itemsjs::Init(Napi::Env env, Napi::Object exports) {
 
   exports.Set("hello", Napi::Function::New(env, itemsjs::HelloWrapped));
@@ -1313,9 +1375,10 @@ Napi::Object itemsjs::Init(Napi::Env env, Napi::Object exports) {
   exports.Set("sort_index", Napi::Function::New(env, itemsjs::SortIndexWrapped));
   exports.Set("load_sort_index", Napi::Function::New(env, itemsjs::LoadSortIndexWrapped));
   exports.Set("index", Napi::Function::New(env, itemsjs::IndexWrapped));
-  exports.Set("indexCb", Napi::Function::New(env, IndexWrappedCb));
-  exports.Set("concurrencyCb", Napi::Function::New(env, ConcurrencyWrappedCb));
+  exports.Set("index_cb", Napi::Function::New(env, itemsjs::IndexWrappedCb));
+  //exports.Set("concurrency_cb", Napi::Function::New(env, ConcurrencyWrappedCb));
   exports.Set("search_facets", Napi::Function::New(env, itemsjs::SearchFacetsWrapped));
+  exports.Set("search_facets_cb", Napi::Function::New(env, itemsjs::SearchFacetsWrappedCb));
   exports.Set("json", Napi::Function::New(env, itemsjs::JsonWrapped));
   exports.Set("tokenize", Napi::Function::New(env, itemsjs::TokenizeWrapped));
   exports.Set("json_at", Napi::Function::New(env, itemsjs::JsonAtWrapped));
