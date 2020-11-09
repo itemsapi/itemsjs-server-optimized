@@ -50,7 +50,9 @@ describe('conjunctive search', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
 
     assert.deepEqual(result.data.tags.a, [1, 3, 4]);
     assert.deepEqual(result.data.tags.c, [1, 3, 4]);
@@ -72,7 +74,9 @@ describe('conjunctive search', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
     assert.deepEqual(result.data.tags.a, [2]);
     assert.deepEqual(result.data.tags.e, [2]);
   })
@@ -84,7 +88,9 @@ describe('conjunctive search', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
 
     assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
     assert.deepEqual(result.data.tags.e, [2]);
@@ -95,7 +101,9 @@ describe('conjunctive search', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
 
     assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
     assert.deepEqual(result.data.tags.e, [2]);
@@ -109,7 +117,9 @@ describe('conjunctive search', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
 
     assert.deepEqual(result.data.tags.a, []);
     assert.deepEqual(result.data.tags.e, []);
@@ -124,7 +134,9 @@ describe('conjunctive search', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
 
     assert.deepEqual(result.data.tags.a, [1, 2]);
     assert.deepEqual(result.data.tags.e, [2]);
@@ -173,7 +185,9 @@ describe('disjunctive search', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
 
     assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
     assert.deepEqual(result.data.tags.c, [1, 3, 4]);
@@ -189,7 +203,9 @@ describe('disjunctive search', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
 
     assert.deepEqual(result.data.tags.a, [1, 2, 3, 4]);
     assert.deepEqual(result.data.tags.c, [1, 3, 4]);
@@ -244,7 +260,9 @@ describe('disjunctive and conjunctive search', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
 
     assert.deepEqual(result.data.tags.a, [1, 3, 4]);
     assert.deepEqual(result.data.tags.e, []);
@@ -261,7 +279,9 @@ describe('disjunctive and conjunctive search', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
 
     assert.deepEqual(result.data.tags.a, [1, 4]);
     assert.deepEqual(result.data.tags.c, [1, 4]);
@@ -312,7 +332,9 @@ describe('generates facets crossed with query', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
 
     assert.deepEqual(result.data.tags.a, [1, 3, 4]);
     assert.deepEqual(result.data.tags.e, []);
@@ -327,7 +349,7 @@ describe('generates facets crossed with query', function() {
 
     var result = await facets.search_native(INDEX_PATH, input, {
       query_ids: new RoaringBitmap32([1]),
-      test: true
+      testing: true
     });
 
     assert.deepEqual(result.data.tags.a, [1]);
@@ -385,7 +407,9 @@ describe('negative filters', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
 
     assert.deepEqual(result.data.tags.a, [2]);
     assert.deepEqual(result.data.tags.c, []);
@@ -425,7 +449,9 @@ describe('small configuration', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
     assert.deepEqual(result.data.category.comedy, [2, 3]);
   })
 })
@@ -454,7 +480,9 @@ describe('no configuration', function() {
       }
     }
 
-    var result = await facets.search_native(INDEX_PATH, input);
+    var result = await facets.search_native(INDEX_PATH, input, {
+      testing: true
+    });
 
     assert.deepEqual(result.data, {});
     assert.deepEqual(result.counters, {});

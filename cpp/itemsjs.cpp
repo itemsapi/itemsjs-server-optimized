@@ -60,7 +60,7 @@ std::string itemsjs::json_at(string json_path, int i) {
 /**
  * native version of faceted search
  */
-std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs::search_facets(const char *&index_path, nlohmann::json input, nlohmann::json filters_array, nlohmann::json config, nlohmann::json facets_fields, std::optional<Roaring> query_ids) {
+std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs::search_facets(const char *&index_path, nlohmann::json input, nlohmann::json filters_array, nlohmann::json config, nlohmann::json facets_fields, std::optional<Roaring> query_ids, bool testing = false) {
 
   // @TODO make unordered
   std::map<string, std::map<string, Roaring>> filters_indexes;
@@ -238,14 +238,11 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
     }
 
 
-    output["counters"][sv][sv2] = ids.cardinality();
+    if (1) {
+      output["counters"][sv][sv2] = ids.cardinality();
+    }
 
-    //nlohmann::json lista;
-    //auto ans = new uint32_t[ids.cardinality()];
-    //ids.toUint32Array(ans);
-
-
-    if (true) {
+    if (testing) {
 
       output["data"][sv][sv2] = nlohmann::json::array();;
       for (auto bit_id: ids) {
@@ -998,8 +995,16 @@ Napi::Object itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {
   string name_a(index_name.ToString());
   const char *index_path = name_a.c_str();
 
+
+  bool testing = false;
+  Napi::Value testing_value = first.Get("testing");
+
+  if (testing_value.IsBoolean() and (bool) testing_value.As<Napi::Boolean>() == true) {
+    testing = true;
+  }
+
   Napi::Object obj = Napi::Object::New(env);
-  auto [result, ids, not_ids] = itemsjs::search_facets(index_path, input, filters_array, conf, facets_fields, query_ids);
+  auto [result, ids, not_ids] = itemsjs::search_facets(index_path, input, filters_array, conf, facets_fields, query_ids, testing);
   obj.Set("raw", result);
 
   if (ids) {

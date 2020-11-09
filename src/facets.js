@@ -326,7 +326,8 @@ Facets.prototype = {
       aggregations: aggregations,
       facets_fields, facets_fields,
       query_ids: query_ids,
-      index_path: index_path
+      index_path: index_path,
+      testing: data.testing
     }
 
     var result;
