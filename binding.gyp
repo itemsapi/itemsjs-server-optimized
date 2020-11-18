@@ -10,8 +10,7 @@
         "cpp/simdjson.cpp"
       ],
       'include_dirs': [
-        "<!@(node -p \"require('node-addon-api').include\")",
-        "<!@(node -p \"require('napi-thread-safe-callback').include\")"
+        "<!@(node -p \"require('node-addon-api').include\")"
       ],
       'libraries': [
         "<!(node -p \"require('./src/binding').liblmdb()\")"
@@ -27,7 +26,6 @@
       },
       'dependencies': [
         "<!(node -p \"require('node-addon-api').gyp\")"
-
       ],
       'defines': [],
 
@@ -41,8 +39,5 @@
         ],
       }]
       ]
-
-
-
   }]
 }

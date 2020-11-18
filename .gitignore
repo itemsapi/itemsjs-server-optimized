@@ -44,3 +44,4 @@ build/
 imdb.json
 imdb2.json
 bench/
+data/

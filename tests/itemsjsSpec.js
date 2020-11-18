@@ -81,7 +81,7 @@ describe('search', function() {
 
   })
 
-  it('async search with two filters', async function test() {
+  xit('async search with two filters', async function test() {
 
     await itemsjs.index(INDEX_NAME, {
       json_object: items,

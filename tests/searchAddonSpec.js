@@ -63,7 +63,7 @@ describe('conjunctive search', function() {
     });
   });
 
-  it('returns facets for two fields (tags, actors)', async function test() {
+  xit('returns facets for two fields (tags, actors)', async function test() {
 
 
     var result1 = addon.search_facets({

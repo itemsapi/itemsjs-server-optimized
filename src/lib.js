@@ -18,7 +18,7 @@ module.exports.search = async function(index_path, input, configuration, facets,
 
   var per_page = parseInt(input.per_page || 12);
   var page = parseInt(input.page || 1);
-  var order = input.order;
+  var order = input.order || 'asc';
   var sort_field = input.sort_field;
   var query_ids;
   var search_time = new Date().getTime();
@@ -31,15 +31,6 @@ module.exports.search = async function(index_path, input, configuration, facets,
   }
 
   search_time = new Date().getTime() - search_time;
-
-
-  /**
-   * ------------------------------------------
-   * new facets sort
-   * sort query ids
-   */
-  var sort_time = new Date().getTime();
-  sort_time = new Date().getTime() - sort_time;
 
   // -------------------------------------------
 
@@ -85,8 +76,6 @@ module.exports.search = async function(index_path, input, configuration, facets,
   /**
    * sorting items
    */
-  var sorting_time = 0;
-
   var sorting_start_time = new Date().getTime();
 
   var time = new Date().getTime();
@@ -105,7 +94,7 @@ module.exports.search = async function(index_path, input, configuration, facets,
     new_items_indexes = new_items_indexes.slice((page - 1) * per_page, page * per_page);
   }
 
-  sorting_time = new Date().getTime() - sorting_start_time;
+  var sorting_time = new Date().getTime() - sorting_start_time;
   var new_items = storage.getItems(index_path, new_items_indexes);
   facets_ids_time = new Date().getTime() - facets_ids_time;
   // -------------------------------------
@@ -127,7 +116,6 @@ module.exports.search = async function(index_path, input, configuration, facets,
     },
     timings: {
       total: total_time,
-      sort: sort_time,
       facets: new_facet_time,
       //filters: facets_ids_time,
       search: search_time,
