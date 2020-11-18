@@ -1,3 +1,6 @@
+// https://github.com/simdjson/simdjson
+// Apache 2.0 License
+
 /* auto-generated on Thu Apr 23 15:36:58 PDT 2020. Do not edit! */
 /* begin file simdjson.h */
 #ifndef SIMDJSON_H

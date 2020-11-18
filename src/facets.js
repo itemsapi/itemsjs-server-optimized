@@ -177,7 +177,11 @@ Facets.prototype = {
       }
 
     } else {
-      return Array.from(addon.sort_index(index_path, ids.serialize(true), sort_field, order, (page - 1) * per_page, per_page));
+      // supports multi threading
+      return Array.from(addon.sort_index_2(index_path, ids.serialize(true), sort_field, order, (page - 1) * per_page, per_page));
+
+      // does not support multi threading
+      //return Array.from(addon.sort_index(index_path, ids.serialize(true), sort_field, order, (page - 1) * per_page, per_page));
     }
   },
 

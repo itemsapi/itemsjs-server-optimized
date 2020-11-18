@@ -216,12 +216,48 @@ describe('indexing', function() {
     var sorted_index = Array.from(addon.sort_index('./data/test_1.mdb', ids, 'price', 'asc', 0, 3));
     assert.deepEqual([2, 3, 1], sorted_index);
 
+    var ids = new RoaringBitmap32([1, 2]).serialize(true);
+    var sorted_index = Array.from(addon.sort_index_2('./data/test_1.mdb', ids, 'price', 'asc', 0, 3));
+    assert.deepEqual([2, 1], sorted_index);
+
     var ids = new RoaringBitmap32([1, 2, 3]).serialize(true);
     var sorted_index = Array.from(addon.sort_index('./data/test_1.mdb', ids, 'price', 'desc', 0, 3));
     assert.deepEqual([1, 3, 2], sorted_index);
 
     var ids = new RoaringBitmap32([1, 2, 3]).serialize(true);
     var sorted_index = Array.from(addon.sort_index('./data/test_2.mdb', ids, 'price', 'asc', 0, 3));
+    assert.deepEqual([2, 1], sorted_index);
+
+    done();
+  })
+
+  it('sort by using sort algorithm', function test(done) {
+
+    // items should be sorted after index by default
+    var ids = new RoaringBitmap32([1, 2, 3]).serialize(true);
+    var sorted_index = Array.from(addon.sort_index_2('./data/test_1.mdb', ids, 'price', 'asc', 0, 3));
+    assert.deepEqual([2, 3, 1], sorted_index);
+
+    // items should be sorted after index by default
+    var ids = new RoaringBitmap32([1, 2, 3]).serialize(true);
+    var sorted_index = Array.from(addon.sort_index_2('./data/test_2.mdb', ids, 'price', 'asc', 0, 3));
+    assert.deepEqual([2, 1], sorted_index);
+
+    // items should be re-sorted
+    var ids = new RoaringBitmap32([1, 2, 3]).serialize(true);
+    var sorted_index = Array.from(addon.sort_index_2('./data/test_1.mdb', ids, 'price', 'asc', 0, 3));
+    assert.deepEqual([2, 3, 1], sorted_index);
+
+    var ids = new RoaringBitmap32([1, 2]).serialize(true);
+    var sorted_index = Array.from(addon.sort_index_2('./data/test_1.mdb', ids, 'price', 'asc', 0, 3));
+    assert.deepEqual([2, 1], sorted_index);
+
+    var ids = new RoaringBitmap32([1, 2, 3]).serialize(true);
+    var sorted_index = Array.from(addon.sort_index_2('./data/test_1.mdb', ids, 'price', 'desc', 0, 3));
+    assert.deepEqual([1, 3, 2], sorted_index);
+
+    var ids = new RoaringBitmap32([1, 2, 3]).serialize(true);
+    var sorted_index = Array.from(addon.sort_index_2('./data/test_2.mdb', ids, 'price', 'asc', 0, 3));
     assert.deepEqual([2, 1], sorted_index);
 
     done();

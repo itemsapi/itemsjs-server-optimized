@@ -7,7 +7,6 @@
 #include "roaring.c"
 #include <chrono>
 #include <string>
-//#include <sstream>
 #include "simdjson.h"
 #include <bits/stdc++.h>
 #include "lmdb2++.h"
@@ -18,10 +17,14 @@
 #include "json.hpp"
 #include <thread>
 #include <mutex>
+#include <boost/interprocess/sync/file_lock.hpp>
+#include <fstream>
+// can be replaced with c++17 filesystem
+#include "filesystem.hpp"
+// can be replaced with c++17 from_chars
+#include "fast_double_parser.h"
 
-#include "napi-thread-safe-callback.hpp"
-
-//https://github.com/gabime/spdlog
+namespace fs = ghc::filesystem;
 
 using namespace std;
 
@@ -36,25 +39,12 @@ const auto DB_SIZE = 100UL * 1024UL * 1024UL * 1024UL;
 
 std::mutex super_mutex;
 
-std::string itemsjs::hello(){
-  return "hello";
-}
-
-std::string itemsjs::json(){
-
-  return "json";
-}
-
-std::string itemsjs::json_at(string json_path, int i) {
-
-  simdjson::dom::parser parser;
-  simdjson::dom::element items;
-
-  items = parser.load(json_path);
-
-  simdjson::dom::element first = items.at(i);
-  string sv = simdjson::minify(first);
-  return sv;
+int fast_atoi( const char * str ) {
+  int val = 0;
+  while( *str ) {
+    val = val*10 + (*str++ - '0');
+  }
+  return val;
 }
 
 /**
@@ -370,105 +360,118 @@ std::tuple<std::set<string>, std::set<string>> tokenize_item(simdjson::dom::obje
 
 void itemsjs::delete_item(const char *&index_path, int id) {
 
-  const std::lock_guard<std::mutex> lock(super_mutex);
+  string file_lock_path = (string)index_path + "/lock";
+  std::ofstream output(file_lock_path.c_str());
 
-  auto env = lmdb::env::create();
+  try {
+    auto lock = std::make_unique<boost::interprocess::file_lock>(file_lock_path.c_str());
+    if (!lock->try_lock()) {
+      lock->lock();
+    }
 
-  env.set_mapsize(DB_SIZE);
-  env.set_max_dbs(20);
-  env.open(index_path, 0, 0664);
-  //env.set_flags();
+    auto env = lmdb::env::create();
 
-  auto wtxn = lmdb::txn::begin(env);
-  auto dbi = lmdb::dbi::open(wtxn, nullptr);
-  auto dbi_pkeys = lmdb::dbi::open(wtxn, "pkeys", MDB_CREATE);
-  auto dbi_filters = lmdb::dbi::open(wtxn, "filters", MDB_CREATE);
-  auto dbi_terms = lmdb::dbi::open(wtxn, "terms", MDB_CREATE);
-  auto dbi_items = lmdb::dbi::open(wtxn, "items", MDB_CREATE);
+    env.set_mapsize(DB_SIZE);
+    env.set_max_dbs(20);
+    env.open(index_path, 0, 0664);
+    //env.set_flags();
 
-  simdjson::dom::parser parser;
-  //std::set<string> filters;
-  //std::set<string> terms;
+    auto wtxn = lmdb::txn::begin(env);
+    auto dbi = lmdb::dbi::open(wtxn, nullptr);
+    auto dbi_pkeys = lmdb::dbi::open(wtxn, "pkeys", MDB_CREATE);
+    auto dbi_filters = lmdb::dbi::open(wtxn, "filters", MDB_CREATE);
+    auto dbi_terms = lmdb::dbi::open(wtxn, "terms", MDB_CREATE);
+    auto dbi_items = lmdb::dbi::open(wtxn, "items", MDB_CREATE);
 
-  std::string_view val;
+    simdjson::dom::parser parser;
+    //std::set<string> filters;
+    //std::set<string> terms;
 
-  string string_id = to_string(int64_t(id));
+    std::string_view val;
 
-  // counting filters and terms
-  // get item
-  if (dbi_items.get(wtxn, string_id, val)) {
+    string string_id = to_string(int64_t(id));
 
-    string json_string(val);
+    // counting filters and terms
+    // get item
+    if (dbi_items.get(wtxn, string_id, val)) {
 
-    simdjson::dom::element item;
-    item = parser.parse(json_string);
-    simdjson::dom::object item2;
-    item2 = item;
+      string json_string(val);
 
-    auto [filters, terms] = tokenize_item(item2);
+      simdjson::dom::element item;
+      item = parser.parse(json_string);
+      simdjson::dom::object item2;
+      item2 = item;
 
-    // deleting or decreasing filters index
-    for (auto&& filter : filters) {
+      auto [filters, terms] = tokenize_item(item2);
 
-      Roaring ids;
-      std::string_view val;
-      if (dbi_filters.get(wtxn, filter, val)) {
-        ids = Roaring::read(val.data());
-        ids.remove(id);
+      // deleting or decreasing filters index
+      for (auto&& filter : filters) {
 
-        if (ids.cardinality()) {
-          db_put_roaring(dbi_filters, wtxn, filter, ids);
-        } else {
-          dbi_filters.del(wtxn, filter);
+        Roaring ids;
+        std::string_view val;
+        if (dbi_filters.get(wtxn, filter, val)) {
+          ids = Roaring::read(val.data());
+          ids.remove(id);
+
+          if (ids.cardinality()) {
+            db_put_roaring(dbi_filters, wtxn, filter, ids);
+          } else {
+            dbi_filters.del(wtxn, filter);
+          }
+
         }
+      }
 
+      // deleting or decreasing terms index
+      for (auto&& filter : terms) {
+
+        Roaring ids;
+        std::string_view val;
+
+        if (dbi_terms.get(wtxn, filter, val)) {
+          ids = Roaring::read(val.data());
+          ids.remove(id);
+
+          if (ids.cardinality()) {
+            db_put_roaring(dbi_terms, wtxn, filter, ids);
+          } else {
+            dbi_terms.del(wtxn, filter);
+          }
+        }
       }
     }
 
-    // deleting or decreasing terms index
-    for (auto&& filter : terms) {
-
-      Roaring ids;
-      std::string_view val;
-
-      if (dbi_terms.get(wtxn, filter, val)) {
-        ids = Roaring::read(val.data());
-        ids.remove(id);
-
-        if (ids.cardinality()) {
-          db_put_roaring(dbi_terms, wtxn, filter, ids);
-        } else {
-          dbi_terms.del(wtxn, filter);
-        }
-      }
+    // deleting "id" from "ids"
+    std::string_view last_ids;
+    Roaring ids;
+    if (dbi.get(wtxn, "ids", last_ids)) {
+      ids = Roaring::read(last_ids.data());
+      ids.remove(id);
+      db_put_roaring(dbi, wtxn, "ids", ids);
     }
+
+    // deleting internal id referencing to user pkey
+    dbi_pkeys.del(wtxn, string_id.c_str());
+
+    // deleting data
+    dbi_items.del(wtxn, string_id.c_str());
+
+    wtxn.commit();
+
+  } catch (const boost::interprocess::interprocess_exception &e) {
+    cout << "There was an error with delete interprocess mutex" << endl;
+    cout << e.what() << endl;
   }
-
-  // deleting "id" from "ids"
-  std::string_view last_ids;
-  Roaring ids;
-  if (dbi.get(wtxn, "ids", last_ids)) {
-    ids = Roaring::read(last_ids.data());
-    ids.remove(id);
-    db_put_roaring(dbi, wtxn, "ids", ids);
-  }
-
-  // deleting internal id referencing to user pkey
-  dbi_pkeys.del(wtxn, string_id.c_str());
-
-  // deleting data
-  dbi_items.del(wtxn, string_id.c_str());
-
-  wtxn.commit();
 }
 
 
-std::vector<int> lista;
+//std::vector<int> lista;
 map<string, map<string, double>> sorting;
-//typedef boost::bimap<boost::bimaps::set_of<int>, boost::bimaps::multiset_of<double>> results_bimap;
 typedef boost::bimap<int, boost::bimaps::multiset_of<double>> results_bimap;
 typedef results_bimap::value_type position;
 
+// @TODO
+// delete because of new sorting version supporting multithreading
 map<string, map<string, results_bimap>> sorting3;
 
 
@@ -517,6 +520,9 @@ void itemsjs::load_sort_index(const char *&index_path, std::vector<std::string> 
 }
 
 
+/**
+ * ids is already filtered by facets and search query
+ */
 std::vector<int> itemsjs::sort_index(const char *&index_path, const Roaring &ids, std::string field, std::string order, int offset, int limit) {
 
   std::vector<int> sorted_ids;
@@ -529,6 +535,9 @@ std::vector<int> itemsjs::sort_index(const char *&index_path, const Roaring &ids
     int j = 0;
     for (auto it = begin; it != end; ++it) {
 
+      /*
+       * fast roaring check if given item value belongs to filtered ids
+       */
       if (ids.contains(it->second)) {
 
         if (j >= offset) {
@@ -544,38 +553,10 @@ std::vector<int> itemsjs::sort_index(const char *&index_path, const Roaring &ids
         }
       }
     }
-
-
-    // @TODO
-    // add missing ids with NULL values to the end
-    /*if (ids.cardinality() > sorted_ids.size() and i < limit and j < (int) ids.cardinality()) {
-
-      //cout << field << " " << ids.cardinality() << " " << sorted_ids.size() << " " << i << " " << j << " " << limit << " there is a place to add more ids" << endl;
-
-      int i = 0;
-      //int j = 0;
-      for(const auto & id : ids) {
-
-        //cout << id << endl;
-
-        if (!found_ids.count(id)) {
-
-          //if (j >= offset) {
-            sorted_ids.push_back(id);
-            ++i;
-          //}
-
-          //++j;
-
-          if (i >= limit) {
-            break;
-          }
-        }
-      }
-    }*/
   };
 
   if (order == "asc") {
+    // we are iterating through item value i.e. price, traffic, etc (ASC)
     loop(sorting3[index_path][field].right.begin(), sorting3[index_path][field].right.end());
   } else if (order == "desc") {
     loop(sorting3[index_path][field].right.rbegin(), sorting3[index_path][field].right.rend());
@@ -584,317 +565,394 @@ std::vector<int> itemsjs::sort_index(const char *&index_path, const Roaring &ids
   return sorted_ids;
 }
 
-std::string itemsjs::index(const char *&index_path, string json_path, const string& json_string, vector<string> &faceted_fields, std::vector<std::string> &sorting_fields, bool append = true) {
 
-  const std::lock_guard<std::mutex> lock(super_mutex);
+/**
+ * ids is already filtered by facets and search query
+ * it is slowier but supports multi-threading
+ * @TODO
+ * use interprocess containers and make light indexing to make it faster on read
+ * change cursor for a lists
+ */
+std::vector<int> itemsjs::sort_index_2(const char *&index_path, const Roaring &ids, std::string field, std::string order, int offset, int limit) {
 
-  auto start_all = std::chrono::high_resolution_clock::now();
-
-  map<string_view, map<string_view, Roaring>> roar;
-  //map<string_view, Roaring> search_roar;
-
-  // @TODO change to string_view for 2x performance on tokenizing search terms
-  map<string, Roaring> search_roar;
-  //vector<string> keys_list;
-  Roaring ids;
-  int starting_id = 1;
+  vector<pair<double,int>> sort_vector;
+  sort_vector.reserve(ids.cardinality());
+  std::vector<int> sorted_ids;
 
   auto env = lmdb::env::create();
   env.set_mapsize(DB_SIZE);
   env.set_max_dbs(20);
   env.open(index_path, 0, 0664);
 
-  if (append) {
-    // local scope
-    // probably not needed in if though
-    {
-      auto rtxn2 = lmdb::txn::begin(env, nullptr, MDB_RDONLY);
-      auto dbi2 = lmdb::dbi::open(rtxn2, nullptr);
+  auto rtxn = lmdb::txn::begin(env, nullptr, MDB_RDONLY);
 
-      std::string_view last_ids;
-
-      if (dbi2.get(rtxn2, "ids", last_ids)) {
-
-        ids = Roaring::read(last_ids.data());
-        starting_id = ids.maximum() + 1;
-      }
-    }
-  }
-
-  //string filename = "/home/mateusz/node/items-benchmark/datasets/shoprank_full.json";
-
-  simdjson::dom::parser parser;
-  simdjson::dom::element items;
-
+  string name = "sorting_" + field;
 
   auto start = std::chrono::high_resolution_clock::now();
 
-  if (!json_path.empty()) {
-    items = parser.load(json_path);
-  } else {
-    items = parser.parse(json_string);
+  try {
+    lmdb::dbi dbi  = lmdb::dbi::open(rtxn, name.c_str());
+    auto cursor = lmdb::cursor::open(rtxn, dbi);
+    std::string_view key, value;
+
+    while (cursor.get(key, value, MDB_NEXT)) {
+
+      int id = fast_atoi(((string)key).c_str());
+
+      if (ids.contains(id)) {
+
+        double val;
+        bool is_ok = fast_double_parser::parse_number(value.data(), &val);
+
+        if (is_ok) {
+          sort_vector.push_back(std::make_pair(val, id));
+        }
+      }
+    }
+  }
+  catch (lmdb::not_found_error) {
+  }
+  catch (...) {
   }
 
   auto elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "parse time: " << elapsed.count() / 1000000<< std::endl;
-
-
-  auto wtxn = lmdb::txn::begin(env);
-  auto dbi = lmdb::dbi::open(wtxn, nullptr);
-  auto dbi_pkeys = lmdb::dbi::open(wtxn, "pkeys", MDB_CREATE);
-  auto dbi_items = lmdb::dbi::open(wtxn, "items", MDB_CREATE);
-
-  //lmdb::dbi sorting_items = lmdb::dbi::open(wtxn, "sorting", MDB_CREATE);
+  //std::cout << "sort cursor walk time: " << elapsed.count() / 1000000<< std::endl;
 
   start = std::chrono::high_resolution_clock::now();
 
-  std::map<string, lmdb::dbi> sorting_dbs;
+  sort(sort_vector.begin(), sort_vector.end());
 
-  for(const auto & field : sorting_fields) {
-    string name = "sorting_" + field;
+  elapsed = std::chrono::high_resolution_clock::now() - start;
+  //std::cout << "vector pairs sort time: " << elapsed.count() / 1000000<< std::endl;
 
-    sorting_dbs[field] = lmdb::dbi::open(wtxn, name.c_str(), MDB_CREATE);
+  if (order == "asc") {
+
+    std::vector<pair<double,int>>::iterator it;
+    for (it = sort_vector.begin() + offset ; it != sort_vector.begin() + offset + limit && it != sort_vector.end(); ++it) {
+      sorted_ids.push_back(it->second);
+    }
+  } else if (order == "desc") {
+
+    std::vector<pair<double,int>>::reverse_iterator it;
+    for (it = sort_vector.rbegin() + offset ; it != sort_vector.rbegin() + offset + limit && it != sort_vector.rend(); ++it) {
+      sorted_ids.push_back(it->second);
+    }
   }
 
-  /**
-   * write items to db
-   */
-  int id = starting_id;
-  for (simdjson::dom::element item : items) {
+  return sorted_ids;
+}
 
-    string sv = simdjson::minify(item);
-    string string_id = to_string(id) + "";
-    //dbi.put(wtxn, string_id.c_str(), sv.c_str());
-    dbi_items.put(wtxn, string_id.c_str(), sv.c_str());
 
-    simdjson::error_code error;
-    uint64_t value;
-    item.at_key("id").get<uint64_t>().tie(value, error);
+std::string itemsjs::index(const char *&index_path, string json_path, const string& json_string, vector<string> &faceted_fields, std::vector<std::string> &sorting_fields, bool append = true) {
 
-    if (!error) {
-      string pkey(to_string(value));
-      dbi_pkeys.put(wtxn, pkey.c_str(), string_id.c_str());
+  string file_lock_path = (string)index_path + "/lock";
+  std::ofstream output(file_lock_path.c_str());
+
+  try {
+    auto lock = std::make_unique<boost::interprocess::file_lock>(file_lock_path.c_str());
+    if (!lock->try_lock()) {
+      lock->lock();
     }
 
-    for(const auto & field : sorting_fields) {
+    //std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
-      simdjson::error_code error;
-      double value;
-      item.at_key(field).get<double>().tie(value, error);
+    auto start_all = std::chrono::high_resolution_clock::now();
 
-      if (!error) {
-        string val(to_string(value));
-        sorting_dbs[field].put(wtxn, string_id.c_str(), val.c_str());
+    map<string_view, map<string_view, Roaring>> roar;
+    //map<string_view, Roaring> search_roar;
 
-        // this is insert or update sort index value
-        sorting3[index_path][field].left.erase(id);
-        sorting3[index_path][field].insert(position(id, value));
-        // does not work with right map
-        //sorting2[field].left[id] = value;
+    // @TODO change to string_view for 2x performance on tokenizing search terms
+    map<string, Roaring> search_roar;
+    //vector<string> keys_list;
+    Roaring ids;
+    int starting_id = 1;
+
+    auto env = lmdb::env::create();
+    env.set_mapsize(DB_SIZE);
+    env.set_max_dbs(20);
+    env.open(index_path, 0, 0664);
+
+    if (append) {
+      // local scope
+      // probably not needed in if though
+      {
+        auto rtxn2 = lmdb::txn::begin(env, nullptr, MDB_RDONLY);
+        auto dbi2 = lmdb::dbi::open(rtxn2, nullptr);
+
+        std::string_view last_ids;
+
+        if (dbi2.get(rtxn2, "ids", last_ids)) {
+
+          ids = Roaring::read(last_ids.data());
+          starting_id = ids.maximum() + 1;
+        }
       }
     }
 
+    //string filename = "/home/mateusz/node/items-benchmark/datasets/shoprank_full.json";
 
-    ids.add(id);
-    ++id;
-  }
+    simdjson::dom::parser parser;
+    simdjson::dom::element items;
 
 
-  /**
-   * write ids to db
-   */
-  db_put_roaring(dbi, wtxn, "ids", ids);
+    auto start = std::chrono::high_resolution_clock::now();
 
-  elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "items put time: " << elapsed.count() / 1000000<< std::endl;
+    if (!json_path.empty()) {
+      items = parser.load(json_path);
+    } else {
+      items = parser.parse(json_string);
+    }
 
-  start = std::chrono::high_resolution_clock::now();
-  wtxn.commit();
+    auto elapsed = std::chrono::high_resolution_clock::now() - start;
+    std::cout << "parse time: " << elapsed.count() / 1000000<< std::endl;
 
-  elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "items put commit time: " << elapsed.count() / 1000000<< std::endl;
 
-  //std::cout << "start indexing facets: " << std::endl;
-  start = std::chrono::high_resolution_clock::now();
+    auto wtxn = lmdb::txn::begin(env);
+    auto dbi = lmdb::dbi::open(wtxn, nullptr);
+    auto dbi_pkeys = lmdb::dbi::open(wtxn, "pkeys", MDB_CREATE);
+    auto dbi_items = lmdb::dbi::open(wtxn, "items", MDB_CREATE);
 
-  /**
-   * tokenize items to facets indexes
-   */
-  id = starting_id;
-  for (simdjson::dom::object item : items) {
+    //lmdb::dbi sorting_items = lmdb::dbi::open(wtxn, "sorting", MDB_CREATE);
 
-    for (auto [key, value] : item) {
+    start = std::chrono::high_resolution_clock::now();
 
-      /**
-       * enumerate over faceted fields
-       */
-      for(auto field : faceted_fields) {
+    std::map<string, lmdb::dbi> sorting_dbs;
 
-        if (key == field and value.type() == simdjson::dom::element_type::ARRAY) {
+    for(const auto & field : sorting_fields) {
+      string name = "sorting_" + field;
 
-          for (auto filter : value) {
+      sorting_dbs[field] = lmdb::dbi::open(wtxn, name.c_str(), MDB_CREATE);
+    }
 
+    /**
+     * write items to db
+     */
+    int id = starting_id;
+    for (simdjson::dom::element item : items) {
+
+      string sv = simdjson::minify(item);
+      string string_id = to_string(id) + "";
+      //dbi.put(wtxn, string_id.c_str(), sv.c_str());
+      dbi_items.put(wtxn, string_id.c_str(), sv.c_str());
+
+      simdjson::error_code error;
+      uint64_t value;
+      item.at_key("id").get<uint64_t>().tie(value, error);
+
+      if (!error) {
+        string pkey(to_string(value));
+        dbi_pkeys.put(wtxn, pkey.c_str(), string_id.c_str());
+      }
+
+      for(const auto & field : sorting_fields) {
+
+        simdjson::error_code error;
+        double value;
+        item.at_key(field).get<double>().tie(value, error);
+
+        if (!error) {
+          string val(to_string(value));
+          sorting_dbs[field].put(wtxn, string_id.c_str(), val.c_str());
+
+          // this is insert or update sort index value
+          sorting3[index_path][field].left.erase(id);
+          sorting3[index_path][field].insert(position(id, value));
+          // does not work with right map
+          //sorting2[field].left[id] = value;
+        }
+      }
+
+
+      ids.add(id);
+      ++id;
+    }
+
+
+    /**
+     * write ids to db
+     */
+    db_put_roaring(dbi, wtxn, "ids", ids);
+
+    elapsed = std::chrono::high_resolution_clock::now() - start;
+    std::cout << "items put time: " << elapsed.count() / 1000000<< std::endl;
+
+    start = std::chrono::high_resolution_clock::now();
+    wtxn.commit();
+
+    elapsed = std::chrono::high_resolution_clock::now() - start;
+    std::cout << "items put commit time: " << elapsed.count() / 1000000<< std::endl;
+
+    //std::cout << "start indexing facets: " << std::endl;
+    start = std::chrono::high_resolution_clock::now();
+
+    /**
+     * tokenize items to facets indexes
+     */
+    id = starting_id;
+    for (simdjson::dom::object item : items) {
+
+      for (auto [key, value] : item) {
+
+        /**
+         * enumerate over faceted fields
+         */
+        for(auto field : faceted_fields) {
+
+          if (key == field and value.type() == simdjson::dom::element_type::ARRAY) {
+
+            for (auto filter : value) {
+
+              roar[key][filter].add(id);
+            }
+          }
+
+          // there is small memory leak
+          else if (key == field and value.type() == simdjson::dom::element_type::INT64) {
+
+            string year(to_string(int64_t(value)));
+            char *char_array = new char [year.length()];
+            strcpy(char_array, year.c_str());
+            string_view filter (char_array, year.length());
+
+            roar[key][filter].add(id);
+            //delete char_array;
+          }
+
+          else if (key == field and value.type() == simdjson::dom::element_type::STRING) {
+
+            string_view filter (value);
             roar[key][filter].add(id);
           }
         }
+      }
 
-        // there is small memory leak
-        else if (key == field and value.type() == simdjson::dom::element_type::INT64) {
+      ++id;
+    }
 
-          string year(to_string(int64_t(value)));
-          char *char_array = new char [year.length()];
-          strcpy(char_array, year.c_str());
-          string_view filter (char_array, year.length());
+    elapsed = std::chrono::high_resolution_clock::now() - start;
+    std::cout << "roaring facets time: " << elapsed.count() / 1000000 << std::endl;
 
-          roar[key][filter].add(id);
-          //delete char_array;
+
+    wtxn = lmdb::txn::begin(env);
+    auto dbi_filters = lmdb::dbi::open(wtxn, "filters", MDB_CREATE);
+
+    start = std::chrono::high_resolution_clock::now();
+    for (auto&& [key, value] : roar) {
+      // use first and second
+      //std::cout << key << '\n';
+      for (auto&& [key2, roar_object] : value) {
+
+        std::string sv(key);
+        std::string sv2(key2);
+        string name = sv + "." + sv2;
+
+        if (append) {
+
+          std::string_view filter_indexes;
+          if (dbi_filters.get(wtxn, name, filter_indexes)) {
+            //roar_object = roar_object | Roaring::read(filter_indexes.data());
+            roar_object |= Roaring::read(filter_indexes.data());
+            roar_object.runOptimize();
+          }
         }
 
-        else if (key == field and value.type() == simdjson::dom::element_type::STRING) {
-
-          string_view filter (value);
-          roar[key][filter].add(id);
-        }
+        db_put_roaring(dbi_filters, wtxn, name, roar_object);
       }
     }
 
-    ++id;
-  }
+    elapsed = std::chrono::high_resolution_clock::now() - start;
+    std::cout << "facets put time: " << elapsed.count() / 1000000<< std::endl;
 
-  elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "roaring facets time: " << elapsed.count() / 1000000 << std::endl;
+    start = std::chrono::high_resolution_clock::now();
+    wtxn.commit();
+
+    elapsed = std::chrono::high_resolution_clock::now() - start;
+    std::cout << "facets commit time: " << elapsed.count() / 1000000<< std::endl;
 
 
-  wtxn = lmdb::txn::begin(env);
-  auto dbi_filters = lmdb::dbi::open(wtxn, "filters", MDB_CREATE);
+    start = std::chrono::high_resolution_clock::now();
 
-  start = std::chrono::high_resolution_clock::now();
-  for (auto&& [key, value] : roar) {
-    // use first and second
-    //std::cout << key << '\n';
-    for (auto&& [key2, roar_object] : value) {
+    /**
+     * full text indexing
+     */
+    id = starting_id;
+    for (simdjson::dom::object item : items) {
 
-      std::string sv(key);
-      std::string sv2(key2);
-      string name = sv + "." + sv2;
+      auto [filters, terms] = tokenize_item(item);
+
+      (void) filters;
+
+      for (auto&& term : terms) {
+        search_roar[term].add(id);
+      }
+
+      ++id;
+    }
+
+    elapsed = std::chrono::high_resolution_clock::now() - start;
+    std::cout << "roaring full text time: " << elapsed.count() / 1000000 << std::endl;
+
+    wtxn = lmdb::txn::begin(env);
+    auto dbi_terms = lmdb::dbi::open(wtxn, "terms", MDB_CREATE);
+
+    cout << "start updating " << search_roar.size() << " terms elements" << endl;
+
+    start = std::chrono::high_resolution_clock::now();
+    //i = 1;
+    for (auto&& [key, roar_object] : search_roar) {
+
+      std::string name(key);
+
+      // ignore long key like
+      //✯✯✯✯✯reviews
+      //term|||✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱ᴇᴇᴇᴇᴇᴇ......
+      if (name.length() > 100) {
+        continue;
+      }
 
       if (append) {
 
         std::string_view filter_indexes;
-        if (dbi_filters.get(wtxn, name, filter_indexes)) {
-          //roar_object = roar_object | Roaring::read(filter_indexes.data());
+        // @TODO
+        // we can make temporary map for Roaring indexes. we save time for reading  ?!
+        // reading is incredibly fast. write is a bottleneck
+        if (dbi_terms.get(wtxn, name, filter_indexes)) {
           roar_object |= Roaring::read(filter_indexes.data());
-          roar_object.runOptimize();
+          // it may slow down?
+          // roar_object.runOptimize();
         }
       }
 
-      db_put_roaring(dbi_filters, wtxn, name, roar_object);
+      db_put_roaring(dbi_terms, wtxn, name, roar_object);
     }
+
+    elapsed = std::chrono::high_resolution_clock::now() - start;
+    std::cout << "search terms put time: " << elapsed.count() / 1000000<< std::endl;
+
+    start = std::chrono::high_resolution_clock::now();
+    wtxn.commit();
+
+    elapsed = std::chrono::high_resolution_clock::now() - start;
+    std::cout << "search terms commit time: " << elapsed.count() / 1000000<< std::endl;
+
+
+    // global variable
+    //lista.push_back(1);
+    //cout << "finished indexing, lista size: " << lista.size() << endl;
+
+    env.close();
+
+    auto elapsed_all = std::chrono::high_resolution_clock::now() - start_all;
+    std::cout << "time index whole block: " << elapsed_all.count() / 1000000<< std::endl;
+
+    return "index";
+
+  } catch (const boost::interprocess::interprocess_exception &e) {
+    cout << "There was an error with indexing interprocess mutex" << endl;
+    cout << e.what() << endl;
   }
 
-  elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "facets put time: " << elapsed.count() / 1000000<< std::endl;
-
-  start = std::chrono::high_resolution_clock::now();
-  wtxn.commit();
-
-  elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "facets commit time: " << elapsed.count() / 1000000<< std::endl;
-
-
-
-
-  //std::cout << "start tokenizing full text: " << std::endl;
-  start = std::chrono::high_resolution_clock::now();
-
-  /**
-   * full text indexing
-   */
-  id = starting_id;
-  for (simdjson::dom::object item : items) {
-
-    auto [filters, terms] = tokenize_item(item);
-
-    (void) filters;
-
-    for (auto&& term : terms) {
-      search_roar[term].add(id);
-    }
-
-    ++id;
-  }
-
-  elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "roaring full text time: " << elapsed.count() / 1000000 << std::endl;
-
-  wtxn = lmdb::txn::begin(env);
-  auto dbi_terms = lmdb::dbi::open(wtxn, "terms", MDB_CREATE);
-
-  cout << "start updating " << search_roar.size() << " terms elements" << endl;
-
-  start = std::chrono::high_resolution_clock::now();
-  //i = 1;
-  for (auto&& [key, roar_object] : search_roar) {
-
-    std::string name(key);
-
-    // ignore long key like
-    //✯✯✯✯✯reviews
-    //term|||✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱✱ᴇᴇᴇᴇᴇᴇ......
-    if (name.length() > 100) {
-      continue;
-    }
-
-    if (append) {
-
-      std::string_view filter_indexes;
-      // @TODO
-      // we can make temporary map for Roaring indexes. we save time for reading  ?!
-      // reading is incredibly fast. write is a bottleneck
-      if (dbi_terms.get(wtxn, name, filter_indexes)) {
-        roar_object |= Roaring::read(filter_indexes.data());
-        // it may slow down?
-        // roar_object.runOptimize();
-      }
-    }
-
-    db_put_roaring(dbi_terms, wtxn, name, roar_object);
-  }
-
-  elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "search terms put time: " << elapsed.count() / 1000000<< std::endl;
-
-  start = std::chrono::high_resolution_clock::now();
-  wtxn.commit();
-
-  elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "search terms commit time: " << elapsed.count() / 1000000<< std::endl;
-
-
-  // global variable
-  lista.push_back(1);
-  cout << "finished indexing, lista size: " << lista.size() << endl;
-
-  env.close();
-
-  auto elapsed_all = std::chrono::high_resolution_clock::now() - start_all;
-  std::cout << "time index whole block: " << elapsed_all.count() / 1000000<< std::endl;
-
-  return "index";
-}
-
-Napi::String itemsjs::HelloWrapped(const Napi::CallbackInfo& info) {
-  Napi::Env env = info.Env();
-  Napi::String returnValue = Napi::String::New(env, itemsjs::hello());
-  return returnValue;
-}
-
-Napi::String itemsjs::JsonWrapped(const Napi::CallbackInfo& info) {
-  Napi::Env env = info.Env();
-  Napi::String json_string = info[0].As<Napi::String>();
-  cout << json_string << endl;
-  Napi::String returnValue = Napi::String::New(env, itemsjs::json());
-  return returnValue;
+  return "catch";
 }
 
 Napi::Array itemsjs::TokenizeWrapped(const Napi::CallbackInfo& info) {
@@ -1037,98 +1095,6 @@ Napi::Object itemsjs::SearchFacetsWrapped(const Napi::CallbackInfo& info) {
   return obj;
 }
 
-
-void itemsjs::SearchFacetsWrappedCb(const Napi::CallbackInfo& info) {
-
-  Napi::Env env = info.Env();
-  Napi::String returnValue;
-
-  Napi::Object first = info[0].As<Napi::Object>();
-
-  auto callback = std::make_shared<ThreadSafeCallback>(info[1].As<Napi::Function>());
-  //bool fail = info.Length() > 2;
-  bool fail = false;
-
-  Napi::Object json = env.Global().Get("JSON").As<Napi::Object>();
-  Napi::Function stringify = json.Get("stringify").As<Napi::Function>();
-
-
-  string input_string = stringify.Call(json, { first.Get("input") }).As<Napi::String>();
-  nlohmann::json input = nlohmann::json::parse(input_string);
-
-  //cout << input << endl;
-
-  string filters_array_string = stringify.Call(json, { first.Get("filters_array") }).As<Napi::String>();
-  nlohmann::json filters_array = nlohmann::json::parse(filters_array_string);
-
-  string conf_string = stringify.Call(json, { first.Get("aggregations") }).As<Napi::String>();
-  nlohmann::json conf = nlohmann::json::parse(conf_string);
-
-  string facets_fields_string = stringify.Call(json, { first.Get("facets_fields") }).As<Napi::String>();
-  nlohmann::json facets_fields = nlohmann::json::parse(facets_fields_string);
-
-  Napi::Value fifth = first.Get("query_ids");
-  std::optional<Roaring> query_ids;
-
-  if (!fifth.IsNull()) {
-    Napi::Buffer<char> buffer = info[4].As<Napi::Buffer<char>>();
-    query_ids = Roaring::read(buffer.Data());
-  }
-
-  Napi::Value index_name = first.Get("index_path");
-  string name_a(index_name.ToString());
-  //const char *index_path = name_a.c_str();
-
-
-  std::thread([callback, fail, name_a, input, filters_array, conf, facets_fields, query_ids] {
-    try {
-      if (fail) {
-        throw std::runtime_error("Failure during async work");
-      }
-
-      const char *index_path = name_a.c_str();
-
-      string result = "aha";
-      auto [result2, ids, not_ids] = itemsjs::search_facets(index_path, input, filters_array, conf, facets_fields, query_ids);
-
-      callback->call([result, result2, ids, not_ids](Napi::Env env, std::vector<napi_value>& args) {
-
-        Napi::Object obj = Napi::Object::New(env);
-
-        obj.Set("raw", result2);
-
-        if (ids) {
-
-          int expectedsize = ids.value().getSizeInBytes();
-          char *serializedbytes = new char [expectedsize];
-          ids.value().write(serializedbytes);
-          std::string_view nowy(serializedbytes, expectedsize);
-
-          Napi::Buffer<char> buffer3 = Napi::Buffer<char>::Copy(env, nowy.data(), nowy.length());
-          delete serializedbytes;
-          obj.Set("ids", buffer3);
-        }
-
-        args = { env.Undefined(), obj };
-      });
-    }
-    catch (std::exception& e) {
-
-      callback->callError(e.what());
-    }
-  }).detach();
-}
-
-Napi::String itemsjs::JsonAtWrapped(const Napi::CallbackInfo& info) {
-  Napi::Env env = info.Env();
-
-  Napi::String returnValue;
-
-  Napi::String json_path = info[0].As<Napi::String>();
-  Napi::Number at = info[1].As<Napi::Number>();
-  return Napi::String::New(env, itemsjs::json_at(json_path, at));
-}
-
 Napi::TypedArrayOf<uint32_t> itemsjs::SortIndexWrapped(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
 
@@ -1145,6 +1111,32 @@ Napi::TypedArrayOf<uint32_t> itemsjs::SortIndexWrapped(const Napi::CallbackInfo&
   auto limit = info[5].As<Napi::Number>().Uint32Value();
 
   std::vector<int> sorted_ids = sort_index(index_path, ids, field, order, offset, limit);
+
+  Napi::TypedArrayOf<uint32_t> array2 = Napi::TypedArrayOf<uint32_t>::New(env, sorted_ids.size());
+
+  for (size_t i=0; i < sorted_ids.size(); i++) {
+    array2[i] = sorted_ids[i];
+  }
+
+  return array2;
+}
+
+Napi::TypedArrayOf<uint32_t> itemsjs::SortIndex2Wrapped(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+
+  Napi::String index_name = info[0].As<Napi::String>();
+  string name_a(index_name.ToString());
+  const char *index_path = name_a.c_str();
+
+  Napi::Buffer<char> buffer = info[1].As<Napi::Buffer<char>>();
+  Roaring ids = Roaring::read(buffer.Data());
+
+  Napi::String field = info[2].As<Napi::String>();
+  Napi::String order = info[3].As<Napi::String>();
+  auto offset = info[4].As<Napi::Number>().Uint32Value();
+  auto limit = info[5].As<Napi::Number>().Uint32Value();
+
+  std::vector<int> sorted_ids = sort_index_2(index_path, ids, field, order, offset, limit);
 
   Napi::TypedArrayOf<uint32_t> array2 = Napi::TypedArrayOf<uint32_t>::New(env, sorted_ids.size());
 
@@ -1242,150 +1234,14 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
   //return returnValue;
 }
 
-// @TODO
-// add mutex
-void itemsjs::IndexWrappedCb(const Napi::CallbackInfo& info) {
-
-  const std::lock_guard<std::mutex> lock(super_mutex);
-  cout << "start index wrapped cb" << endl;
-
-  Napi::Env env = info.Env();
-  Napi::HandleScope scope(env);
-
-  auto callback = std::make_shared<ThreadSafeCallback>(info[1].As<Napi::Function>());
-  bool fail = info.Length() > 2;
-
-
-  Napi::Object first = info[0].As<Napi::Object>();
-
-
-  Napi::Value index_name = first.Get("index_path");
-  string name_a(index_name.ToString());
-  const char *index_path = name_a.c_str();
-
-
-  vector<string> faceted_fields_array;
-  Napi::Value faceted_fields_value = first.Get("faceted_fields");
-
-  if (faceted_fields_value.IsArray()) {
-    Napi::Array faceted_fields = faceted_fields_value.As<Napi::Array>();
-
-    for (unsigned int i = 0 ; i < faceted_fields.Length() ; ++i) {
-
-      Napi::Value element = faceted_fields.Get(to_string(i));
-      string v = element.ToString();
-
-      faceted_fields_array.push_back(v);
-    }
-  }
-
-  vector<string> sorting_fields_array;
-  Napi::Value sorting_fields_value = first.Get("sorting_fields");
-
-  if (sorting_fields_value.IsArray()) {
-    Napi::Array sorting_fields = sorting_fields_value.As<Napi::Array>();
-
-    for (unsigned int i = 0 ; i < sorting_fields.Length() ; ++i) {
-
-      Napi::Value element = sorting_fields.Get(to_string(i));
-      string v = element.ToString();
-
-      sorting_fields_array.push_back(v);
-    }
-  }
-
-  bool append = true;
-  Napi::Value append_value = first.Get("append");
-
-  if (append_value.IsBoolean() and (bool) append_value.As<Napi::Boolean>() == false) {
-    append = false;
-  }
-
-  cout << "append " << append << endl;
-
-  string json_string;
-  string json_path;
-
-  if (first.Has("json_object")) {
-
-    Napi::Value json_object = first.Get("json_object");
-
-    Napi::Object json = env.Global().Get("JSON").As<Napi::Object>();
-    Napi::Function stringify = json.Get("stringify").As<Napi::Function>();
-    json_string = stringify.Call(json, { json_object }).As<Napi::String>();
-
-  } else if (first.Has("json_path")) {
-
-    json_path = first.Get("json_path").ToString();
-
-  } else if (first.Has("json_string")) {
-
-    if (first.Get("json_string").IsBuffer()) {
-
-      // @todo delete buffer
-      // there is a memory leak
-      Napi::Buffer<char> buffer = first.Get("json_string").As<Napi::Buffer<char>>();
-
-      string_view asdf (buffer.Data(), buffer.Length());
-      json_string = asdf;
-
-    } else {
-      // there is no memory leak
-      json_string = first.Get("json_string").ToString();
-    }
-  }
-
-  // Pass callback to other thread
-  std::thread([callback, fail, &index_path, json_path, json_string, &faceted_fields_array, &sorting_fields_array, append] {
-  //std::thread([callback, fail, std::ref(json_path), std::ref(json_string), std::ref(faceted_fields_array), std::ref(sorting_fields_array), append] {
-    try {
-      if (fail) {
-        throw std::runtime_error("Failure during async work");
-      }
-
-      vector<string> a;
-      vector<string> b;
-
-      //const char *index_path = name_a.c_str();
-      //const char *index_path = "aahaa";
-
-      //string result = itemsjs::index("", "[{\"a\":5},{\"a\":6}]", a, b, false);
-      string result = itemsjs::index(index_path, json_path, json_string, faceted_fields_array, sorting_fields_array, append);
-      //string result = itemsjs::index(aha.c_str(), json_path, json_string, faceted_fields_array, sorting_fields_array, append);
-      //index3(aha.c_str());
-      //string result = index4(index_path, json_path, json_string, faceted_fields_array, sorting_fields_array, append);
-      //string result = "";
-
-      // this is non blocking
-      //cout << "go to sleep" << endl;
-      //std::this_thread::sleep_for(3s);
-
-      //concurrency_test();
-
-      callback->call([result](Napi::Env env, std::vector<napi_value>& args) {
-
-        args = { env.Undefined(), Napi::String::New(env, result) };
-      });
-    }
-    catch (std::exception& e) {
-      callback->callError(e.what());
-    }
-  }).detach();
-}
-
 Napi::Object itemsjs::Init(Napi::Env env, Napi::Object exports) {
 
-  exports.Set("hello", Napi::Function::New(env, itemsjs::HelloWrapped));
   exports.Set("delete_item", Napi::Function::New(env, itemsjs::DeleteItemWrapped));
   exports.Set("sort_index", Napi::Function::New(env, itemsjs::SortIndexWrapped));
+  exports.Set("sort_index_2", Napi::Function::New(env, itemsjs::SortIndex2Wrapped));
   exports.Set("load_sort_index", Napi::Function::New(env, itemsjs::LoadSortIndexWrapped));
   exports.Set("index", Napi::Function::New(env, itemsjs::IndexWrapped));
-  exports.Set("index_cb", Napi::Function::New(env, itemsjs::IndexWrappedCb));
-  //exports.Set("concurrency_cb", Napi::Function::New(env, ConcurrencyWrappedCb));
   exports.Set("search_facets", Napi::Function::New(env, itemsjs::SearchFacetsWrapped));
-  exports.Set("search_facets_cb", Napi::Function::New(env, itemsjs::SearchFacetsWrappedCb));
-  exports.Set("json", Napi::Function::New(env, itemsjs::JsonWrapped));
   exports.Set("tokenize", Napi::Function::New(env, itemsjs::TokenizeWrapped));
-  exports.Set("json_at", Napi::Function::New(env, itemsjs::JsonAtWrapped));
   return exports;
 }

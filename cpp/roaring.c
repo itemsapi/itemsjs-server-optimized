@@ -1,3 +1,6 @@
+// https://github.com/RoaringBitmap/CRoaring
+// Apache 2.0 License
+
 /* auto-generated on Sun Apr 26 10:49:22 CEST 2020. Do not edit! */
 #include "roaring.h"
 
