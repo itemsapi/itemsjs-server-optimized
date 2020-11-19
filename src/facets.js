@@ -17,7 +17,6 @@ const addon = require('./addon');
  */
 var Facets = function() {
   this.config = {};
-  this.indexes_cache;
 };
 
 Facets.prototype = {
@@ -123,27 +122,36 @@ Facets.prototype = {
     storage.setConfiguration(index_path, configuration);
   },
 
-  list_indexes: async function() {
+  list_indexes: async function(params) {
+
+    params = params || {};
+    var per_page = parseInt(params.per_page || 12);
+    var page = parseInt(params.page || 1);
 
     var output = [];
 
     fs.readdirSync('./data').forEach(file => {
 
       if (file.match(/\.mdb$/)) {
-        output.push(file.slice(0, -4));
+        output.push({
+          index_name: file.slice(0, -4)
+        })
       }
     });
 
     return {
-      data: output
+      pagination: {
+        per_page: per_page,
+        page: page,
+        total: output.length
+      },
+      data: output.slice((page - 1) * per_page, page * per_page)
     }
   },
-
 
   configuration: function(index_path) {
     return storage.getConfiguration(index_path);
   },
-
 
   /*
    * split query for normalized tokens

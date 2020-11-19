@@ -13,10 +13,6 @@ const MAX_DBS = 30;
 
 var openDB = function(index_path) {
 
-  if (!fs.existsSync(index_path)) {
-    fs.mkdirSync(index_path);
-  }
-
   const env = new lmdb.Env();
 
   env.open({
@@ -141,16 +137,18 @@ module.exports.deleteConfiguration = function(index_path, configuration) {
 
 module.exports.setConfiguration = function(index_path, configuration) {
 
-  var open = openDB(index_path);
-  var dbi = open.dbi;
-  var env = open.env;
+  addon.set_configuration(index_path, JSON.stringify(configuration));
 
-  var txn = env.beginTxn();
-  var binary = txn.putBinary(dbi, new Buffer.from('configuration'), new Buffer.from(JSON.stringify(configuration)));
-  txn.commit();
+  //var open = openDB(index_path);
+  //var dbi = open.dbi;
+  //var env = open.env;
 
-  dbi.close();
-  env.close();
+  //var txn = env.beginTxn();
+  //var binary = txn.putBinary(dbi, new Buffer.from('configuration'), new Buffer.from(JSON.stringify(configuration)));
+  //txn.commit();
+
+  //dbi.close();
+  //env.close();
 }
 
 module.exports.getConfiguration = function(index_path) {

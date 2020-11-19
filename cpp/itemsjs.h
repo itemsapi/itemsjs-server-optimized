@@ -14,6 +14,8 @@ namespace itemsjs {
   std::vector<int> sort_index(const char *&index_path, const Roaring &ids, std::string field, std::string order, int offset, int limit);
   std::vector<int> sort_index_2(const char *&index_path, const Roaring &ids, std::string field, std::string order, int offset, int limit);
   void load_sort_index(const char *&index_path, std::vector<std::string> &sorting_fields);
+  void set_configuration(const char *&index_path, const std::string& json);
+  void SetConfigurationWrapped(const Napi::CallbackInfo& info);
   void delete_item(const char *&index_path, int id);
   void DeleteItemWrapped(const Napi::CallbackInfo& info);
   void LoadSortIndexWrapped(const Napi::CallbackInfo& info);

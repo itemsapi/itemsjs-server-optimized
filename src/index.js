@@ -26,8 +26,8 @@ module.exports = function itemsjs() {
 
     /**
      */
-    list_indexes: async function() {
-      return facets.list_indexes();
+    list_indexes: async function(params) {
+      return facets.list_indexes(params);
     },
 
     load_sort_index: function(index_name) {

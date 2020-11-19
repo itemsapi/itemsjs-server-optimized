@@ -29,15 +29,13 @@ namespace fs = ghc::filesystem;
 using namespace std;
 
 const char *DELIMITERS = "!\"#$%&'()*+,-./:;<=>?@\[\\]^_`{|}~\n\v\f\r ";
-unsigned int WRITER_FLAGS = MDB_NOSYNC | MDB_WRITEMAP | MDB_MAPASYNC | MDB_NOMETASYNC | MDB_NORDAHEAD;
+//unsigned int WRITER_FLAGS = MDB_NOSYNC | MDB_WRITEMAP | MDB_MAPASYNC | MDB_NOMETASYNC | MDB_NORDAHEAD;
 //unsigned int WRITER_FLAGS = 0;
 
 // mutex is used so MDB_NOTLS not needed
-unsigned int READER_FLAGS = MDB_NOLOCK | MDB_NOTLS;
+//unsigned int READER_FLAGS = MDB_NOLOCK | MDB_NOTLS;
 //unsigned int READER_FLAGS = 0;
 const auto DB_SIZE = 100UL * 1024UL * 1024UL * 1024UL;
-
-std::mutex super_mutex;
 
 int fast_atoi( const char * str ) {
   int val = 0;
@@ -52,7 +50,7 @@ int fast_atoi( const char * str ) {
  */
 std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs::search_facets(const char *&index_path, nlohmann::json input, nlohmann::json filters_array, nlohmann::json config, nlohmann::json facets_fields, std::optional<Roaring> query_ids, bool testing = false) {
 
-  // @TODO make unordered
+  // @TODO make unordered (if faster)
   std::map<string, std::map<string, Roaring>> filters_indexes;
   std::map<string, std::map<string, Roaring>> not_filters_indexes;
   std::map<string, Roaring> combination;
@@ -642,8 +640,45 @@ std::vector<int> itemsjs::sort_index_2(const char *&index_path, const Roaring &i
   return sorted_ids;
 }
 
+void itemsjs::set_configuration(const char *&index_path, const std::string& json) {
+
+  if (!fs::is_directory(index_path) || !fs::exists(index_path)) {
+    fs::create_directory(index_path);
+  }
+
+  string file_lock_path = (string)index_path + "/lock";
+  std::ofstream output(file_lock_path.c_str());
+
+  try {
+    auto lock = std::make_unique<boost::interprocess::file_lock>(file_lock_path.c_str());
+    if (!lock->try_lock()) {
+      lock->lock();
+    }
+
+    auto env = lmdb::env::create();
+
+    env.set_mapsize(DB_SIZE);
+    env.set_max_dbs(20);
+    env.open(index_path, 0, 0664);
+
+    auto wtxn = lmdb::txn::begin(env);
+    auto dbi = lmdb::dbi::open(wtxn, nullptr);
+    dbi.put(wtxn, "configuration", json.c_str());
+
+    wtxn.commit();
+    env.close();
+
+  } catch (const boost::interprocess::interprocess_exception &e) {
+    cout << "There was an error with setting configuration interprocess mutex" << endl;
+    cout << e.what() << endl;
+  }
+}
 
 std::string itemsjs::index(const char *&index_path, string json_path, const string& json_string, vector<string> &faceted_fields, std::vector<std::string> &sorting_fields, bool append = true) {
+
+  if (!fs::is_directory(index_path) || !fs::exists(index_path)) {
+    fs::create_directory(index_path);
+  }
 
   string file_lock_path = (string)index_path + "/lock";
   std::ofstream output(file_lock_path.c_str());
@@ -994,6 +1029,20 @@ void itemsjs::DeleteItemWrapped(const Napi::CallbackInfo& info) {
   itemsjs::delete_item(index_path, id);
 }
 
+void itemsjs::SetConfigurationWrapped(const Napi::CallbackInfo& info) {
+
+  Napi::String index_name = info[0].As<Napi::String>();
+  string name_a(index_name.ToString());
+  const char *index_path = name_a.c_str();
+
+  // json already stringified
+  Napi::String json_object = info[1].As<Napi::String>();
+  string json_string(json_object.ToString());
+
+  itemsjs::set_configuration(index_path, json_string);
+}
+
+
 void itemsjs::LoadSortIndexWrapped(const Napi::CallbackInfo& info) {
 
   Napi::String index_name = info[0].As<Napi::String>();
@@ -1237,6 +1286,7 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
 Napi::Object itemsjs::Init(Napi::Env env, Napi::Object exports) {
 
   exports.Set("delete_item", Napi::Function::New(env, itemsjs::DeleteItemWrapped));
+  exports.Set("set_configuration", Napi::Function::New(env, itemsjs::SetConfigurationWrapped));
   exports.Set("sort_index", Napi::Function::New(env, itemsjs::SortIndexWrapped));
   exports.Set("sort_index_2", Napi::Function::New(env, itemsjs::SortIndex2Wrapped));
   exports.Set("load_sort_index", Napi::Function::New(env, itemsjs::LoadSortIndexWrapped));
