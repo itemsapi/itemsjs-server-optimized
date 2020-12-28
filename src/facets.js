@@ -102,7 +102,7 @@ Facets.prototype = {
     data.index_path = index_path;
 
     if (configuration.async_indexing === true) {
-      console.log(`async indexing`);
+      //console.log(`async indexing`);
       await addon.indexAsync(data);
     } else {
       addon.index(data);
@@ -273,7 +273,7 @@ Facets.prototype = {
       throw new Error('Not found any indexes');
     }
 
-    console.log(`load indexes: ${new Date().getTime() - time}`);
+    //console.log(`load indexes: ${new Date().getTime() - time}`);
 
     _.mapValues(indexes, function(bitmap, key) {
 
@@ -289,8 +289,8 @@ Facets.prototype = {
         temp_facet['bits_data_temp'][key1][key2] = bitmap;
       }
     })
-    console.log(`load indexes from db + parsing: ${new Date().getTime() - time}`);
-    console.log(`calculation will be done for: ${Object.keys(indexes).length} indexes`);
+    //console.log(`load indexes from db + parsing: ${new Date().getTime() - time}`);
+    //console.log(`calculation will be done for: ${Object.keys(indexes).length} indexes`);
 
     return temp_facet;
   },
@@ -347,13 +347,13 @@ Facets.prototype = {
     //console.log(data);
 
     if (data.is_async === true) {
-      console.log(`async searching`);
+      //console.log(`async searching`);
       result = await addon.search_facets_async(query);
     } else {
       result = addon.search_facets(query);
     }
 
-    console.log(`native search time: ${new Date().getTime() - time}`);
+    //console.log(`native search time: ${new Date().getTime() - time}`);
 
     var ids = result.ids ? RoaringBitmap32.deserialize(result.ids, true) : null;
     var not_ids = result.not_ids ? RoaringBitmap32.deserialize(result.not_ids, true) : null;

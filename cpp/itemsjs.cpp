@@ -117,7 +117,7 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
   }
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "load filters indexes time: " << elapsed.count() / 1000000<< std::endl;
+  //std::cout << "load filters indexes time: " << elapsed.count() / 1000000<< std::endl;
 
   start = std::chrono::high_resolution_clock::now();
 
@@ -153,7 +153,7 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
   }
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "combination time: " << elapsed.count() / 1000000<< std::endl;
+  //std::cout << "combination time: " << elapsed.count() / 1000000<< std::endl;
 
   // cross combination with query ids
   if (query_ids) {
@@ -243,8 +243,8 @@ std::tuple<std::string, std::optional<Roaring>, std::optional<Roaring>> itemsjs:
   }
 
   elapsed = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "cursor facets search time: " << elapsed.count() / 1000000<< std::endl;
-  std::cout << "facets crossed times: " << i << std::endl;
+  //std::cout << "cursor facets search time: " << elapsed.count() / 1000000<< std::endl;
+  //std::cout << "facets crossed times: " << i << std::endl;
 
   // probably not needed because it's auto destroyed after going out of scope
   cursor.close();
@@ -739,7 +739,7 @@ std::string itemsjs::index(const char *&index_path, string json_path, const stri
     }
 
     auto elapsed = std::chrono::high_resolution_clock::now() - start;
-    std::cout << "parse time: " << elapsed.count() / 1000000<< std::endl;
+    //std::cout << "parse time: " << elapsed.count() / 1000000<< std::endl;
 
 
     auto wtxn = lmdb::txn::begin(env);
@@ -809,13 +809,13 @@ std::string itemsjs::index(const char *&index_path, string json_path, const stri
     db_put_roaring(dbi, wtxn, "ids", ids);
 
     elapsed = std::chrono::high_resolution_clock::now() - start;
-    std::cout << "items put time: " << elapsed.count() / 1000000<< std::endl;
+    //std::cout << "items put time: " << elapsed.count() / 1000000<< std::endl;
 
     start = std::chrono::high_resolution_clock::now();
     wtxn.commit();
 
     elapsed = std::chrono::high_resolution_clock::now() - start;
-    std::cout << "items put commit time: " << elapsed.count() / 1000000<< std::endl;
+    //std::cout << "items put commit time: " << elapsed.count() / 1000000<< std::endl;
 
     //std::cout << "start indexing facets: " << std::endl;
     start = std::chrono::high_resolution_clock::now();
@@ -865,7 +865,7 @@ std::string itemsjs::index(const char *&index_path, string json_path, const stri
     }
 
     elapsed = std::chrono::high_resolution_clock::now() - start;
-    std::cout << "roaring facets time: " << elapsed.count() / 1000000 << std::endl;
+    //std::cout << "roaring facets time: " << elapsed.count() / 1000000 << std::endl;
 
 
     wtxn = lmdb::txn::begin(env);
@@ -896,13 +896,13 @@ std::string itemsjs::index(const char *&index_path, string json_path, const stri
     }
 
     elapsed = std::chrono::high_resolution_clock::now() - start;
-    std::cout << "facets put time: " << elapsed.count() / 1000000<< std::endl;
+    //std::cout << "facets put time: " << elapsed.count() / 1000000<< std::endl;
 
     start = std::chrono::high_resolution_clock::now();
     wtxn.commit();
 
     elapsed = std::chrono::high_resolution_clock::now() - start;
-    std::cout << "facets commit time: " << elapsed.count() / 1000000<< std::endl;
+    //std::cout << "facets commit time: " << elapsed.count() / 1000000<< std::endl;
 
 
     start = std::chrono::high_resolution_clock::now();
@@ -925,12 +925,12 @@ std::string itemsjs::index(const char *&index_path, string json_path, const stri
     }
 
     elapsed = std::chrono::high_resolution_clock::now() - start;
-    std::cout << "roaring full text time: " << elapsed.count() / 1000000 << std::endl;
+    //std::cout << "roaring full text time: " << elapsed.count() / 1000000 << std::endl;
 
     wtxn = lmdb::txn::begin(env);
     auto dbi_terms = lmdb::dbi::open(wtxn, "terms", MDB_CREATE);
 
-    cout << "start updating " << search_roar.size() << " terms elements" << endl;
+    //cout << "start updating " << search_roar.size() << " terms elements" << endl;
 
     start = std::chrono::high_resolution_clock::now();
     //i = 1;
@@ -962,13 +962,13 @@ std::string itemsjs::index(const char *&index_path, string json_path, const stri
     }
 
     elapsed = std::chrono::high_resolution_clock::now() - start;
-    std::cout << "search terms put time: " << elapsed.count() / 1000000<< std::endl;
+    //std::cout << "search terms put time: " << elapsed.count() / 1000000<< std::endl;
 
     start = std::chrono::high_resolution_clock::now();
     wtxn.commit();
 
     elapsed = std::chrono::high_resolution_clock::now() - start;
-    std::cout << "search terms commit time: " << elapsed.count() / 1000000<< std::endl;
+    //std::cout << "search terms commit time: " << elapsed.count() / 1000000<< std::endl;
 
 
     // global variable
@@ -978,7 +978,7 @@ std::string itemsjs::index(const char *&index_path, string json_path, const stri
     env.close();
 
     auto elapsed_all = std::chrono::high_resolution_clock::now() - start_all;
-    std::cout << "time index whole block: " << elapsed_all.count() / 1000000<< std::endl;
+    //std::cout << "time index whole block: " << elapsed_all.count() / 1000000<< std::endl;
 
     return "index";
 
@@ -1239,7 +1239,7 @@ Napi::String itemsjs::IndexWrapped(const Napi::CallbackInfo& info) {
     append = false;
   }
 
-  cout << "append " << append << endl;
+  //cout << "append " << append << endl;
 
   string json_string;
   string json_path;

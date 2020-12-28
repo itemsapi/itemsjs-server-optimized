@@ -80,13 +80,13 @@ module.exports.search = async function(index_path, input, configuration, facets,
 
   var time = new Date().getTime();
   new_items_indexes = facets.pagination_sort_ids(index_path, filtered_indexes_bitmap, sort_field, order, per_page, page);
-  console.log(`sort time: ${new Date().getTime() - time}`);
+  //console.log(`sort time: ${new Date().getTime() - time}`);
 
   if (proximity_ids_bitmap.size) {
 
     var time = new Date().getTime();
     var proximity_ids = facets.pagination_sort_ids(index_path, proximity_ids_bitmap, sort_field, order, per_page, page)
-    console.log(`sort 2 time: ${new Date().getTime() - time}`);
+    //console.log(`sort 2 time: ${new Date().getTime() - time}`);
 
     // make proximity search results first
     new_items_indexes = proximity_ids.concat(new_items_indexes);
@@ -101,12 +101,12 @@ module.exports.search = async function(index_path, input, configuration, facets,
 
   var time = new Date().getTime();
   var aggregations = helpers2.getBuckets(facet_result, input, configuration.aggregations);
-  console.log(`aggregations process time: ${new Date().getTime() - time}`);
+  //console.log(`aggregations process time: ${new Date().getTime() - time}`);
   total_time = new Date().getTime() - total_time;
 
-  console.log(`facets search time: ${new_facet_time}`);
+  //console.log(`facets search time: ${new_facet_time}`);
   //console.log(`filters time: ${facets_ids_time}`);
-  console.log(`total total search time: ${total_time}`);
+  //console.log(`total total search time: ${total_time}`);
 
   return {
     pagination: {
