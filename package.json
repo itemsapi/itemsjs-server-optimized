@@ -17,7 +17,7 @@
     "express": "^4.17.1",
     "lodash": "^4.17.20",
     "node-addon-api": "^2.0.0",
-    "node-lmdb": "^0.8.0",
+    "node-lmdb": "^0.9.7",
     "roaring": "github:cigolpl/roaring-node"
   },
   "devDependencies": {
